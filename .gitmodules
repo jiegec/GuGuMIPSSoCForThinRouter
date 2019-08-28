@@ -1,0 +1,3 @@
+[submodule "GuGuMIPS"]
+	path = GuGuMIPS
+	url = git@github.com:jiegec/GuGuMIPS.git
