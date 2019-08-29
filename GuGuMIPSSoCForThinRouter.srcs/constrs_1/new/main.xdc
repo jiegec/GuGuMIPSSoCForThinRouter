@@ -203,7 +203,7 @@ set_property -dict {PACKAGE_PIN E3 IOSTANDARD LVCMOS33} [get_ports {eth_rgmii_td
 set_property -dict {PACKAGE_PIN F3 IOSTANDARD LVCMOS33} [get_ports {eth_rgmii_td[3]}]
 set_property -dict {PACKAGE_PIN G4 IOSTANDARD LVCMOS33} [get_ports eth_rgmii_tx_ctl]
 set_property -dict {PACKAGE_PIN D3 IOSTANDARD LVCMOS33} [get_ports eth_rgmii_txc]
-set_property -dict {PACKAGE_PIN C4 IOSTANDARD LVCMOS33} [get_ports eth_rst]
+set_property -dict {PACKAGE_PIN C4 IOSTANDARD LVCMOS33} [get_ports eth_rst_n]
 
 set_property -dict {PACKAGE_PIN K6 IOSTANDARD LVCMOS33} [get_ports eth_spi_io0_io]
 set_property -dict {PACKAGE_PIN K5 IOSTANDARD LVCMOS33} [get_ports eth_spi_io1_io]

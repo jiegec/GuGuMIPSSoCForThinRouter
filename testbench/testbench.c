@@ -46,7 +46,7 @@ void main() {
         puts("Warning: SPI might not working properly");
       }
     } else if (strequ(buffer, "poll")) {
-      fifo_poll_packet(packet);
+      eth_poll_packet(packet);
     } else {
       puts("Nothing to do\r\n");
     }

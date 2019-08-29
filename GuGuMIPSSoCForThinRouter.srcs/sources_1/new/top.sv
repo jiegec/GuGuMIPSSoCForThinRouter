@@ -53,7 +53,7 @@ module top(
     output [3:0] eth_rgmii_td,
     output eth_rgmii_tx_ctl,
     output eth_rgmii_txc,
-    output eth_rst,
+    output eth_rst_n,
 
     inout eth_spi_io0_io, // MOSI
     inout eth_spi_io1_io, // MISO
@@ -110,7 +110,7 @@ module top(
         .eth_rgmii_td(eth_rgmii_td),
         .eth_rgmii_tx_ctl(eth_rgmii_tx_ctl),
         .eth_rgmii_txc(eth_rgmii_txc),
-        .eth_rst(eth_rst),
+        .eth_rst_n(eth_rst_n),
 
         .eth_spi_io0_io(eth_spi_io0_io),
         .eth_spi_io1_io(eth_spi_io1_io),

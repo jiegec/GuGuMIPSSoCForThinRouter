@@ -4,17 +4,49 @@ volatile uint32_t *UART_RX = (uint32_t *)0xBFD00000;
 volatile uint32_t *UART_TX = (uint32_t *)0xBFD00004;
 volatile uint32_t *UART_STAT = (uint32_t *)0xBFD00008;
 
-volatile uint32_t *SPI_RESET = (uint32_t *)0xBFE10040;
-volatile uint32_t *SPI_CONTROL = (uint32_t *)0xBFE10060;
-volatile uint32_t *SPI_STATUS = (uint32_t *)0xBFE10064;
-volatile uint8_t *SPI_TRANSMIT = (uint8_t *)0xBFE10068;
-volatile uint8_t *SPI_RECEIVE = (uint8_t *)0xBFE1006C;
-volatile uint32_t *SPI_SLAVESELECT = (uint32_t *)0xBFE10070;
+volatile uint32_t *SPI_RESET = (uint32_t *)0xBFE00040;
+volatile uint32_t *SPI_CONTROL = (uint32_t *)0xBFE00060;
+volatile uint32_t *SPI_STATUS = (uint32_t *)0xBFE00064;
+volatile uint8_t *SPI_TRANSMIT = (uint8_t *)0xBFE00068;
+volatile uint8_t *SPI_RECEIVE = (uint8_t *)0xBFE0006C;
+volatile uint32_t *SPI_SLAVESELECT = (uint32_t *)0xBFE00070;
 
+volatile uint32_t *FIFO_ISR = (uint32_t *)0xBFB00000;
 volatile uint32_t *FIFO_RDFR = (uint32_t *)0xBFB00018;
 volatile uint32_t *FIFO_RDFO = (uint32_t *)0xBFB0001C;
 volatile uint32_t *FIFO_RDFD = (uint32_t *)0xBFB00020;
 volatile uint32_t *FIFO_RLR = (uint32_t *)0xBFB00024;
+
+volatile uint32_t *DMA_S2MM_DMACR = (uint32_t *)0xBFF00030;
+volatile uint32_t *DMA_S2MM_DMASR = (uint32_t *)0xBFF00034;
+volatile uint32_t *DMA_S2MM_CURDESC = (uint32_t *)0xBFF00038;
+volatile uint32_t *DMA_S2MM_CURDESC_HI = (uint32_t *)0xBFF0003C;
+volatile uint32_t *DMA_S2MM_TAILDESC = (uint32_t *)0xBFF00040;
+volatile uint32_t *DMA_S2MM_TAILDESC_HI = (uint32_t *)0xBFF00044;
+
+#define BD_COUNT 16
+#define BUFFER_SIZE 2048
+#define PHYSICAL_MEMORY_OFFSET 0x80000000
+#define UNCACHED_MEMORY_OFFSET 0x20000000
+
+struct DMADesc {
+  uint32_t nextDescLo;
+  uint32_t nextDescHi;
+  uint32_t bufferAddrLo;
+  uint32_t bufferAddrHi;
+  uint32_t reserved[2];
+  uint32_t control;
+  uint32_t status;
+  uint32_t application[5];
+  uint32_t padding[3];
+};
+
+volatile struct DMADesc rxBdSpace[BD_COUNT]
+    __attribute__((aligned(sizeof(struct DMADesc))));
+uint8_t rxBufSpace[BD_COUNT][BUFFER_SIZE];
+volatile struct DMADesc txBdSpace[BD_COUNT]
+    __attribute__((aligned(sizeof(struct DMADesc))));
+uint8_t txBufSpace[BD_COUNT][BUFFER_SIZE];
 
 void putc(char ch) {
   while (*UART_STAT & 0x8)
@@ -57,6 +89,20 @@ void putdec(uint32_t num) {
 void puthex(uint32_t num) {
   int i, temp;
   for (i = 7; i >= 0; i--) {
+    temp = (num >> (i * 4)) & 0xF;
+    if (temp < 10) {
+      putc('0' + temp);
+    } else if (temp < 16) {
+      putc('A' + temp - 10);
+    } else {
+      putc('.');
+    }
+  }
+}
+
+void puthex_u8(uint8_t num) {
+  int i, temp;
+  for (i = 1; i >= 0; i--) {
     temp = (num >> (i * 4)) & 0xF;
     if (temp < 10) {
       putc('0' + temp);
@@ -146,11 +192,99 @@ uint8_t spi_read_register(uint8_t addr) {
   return readBuffer[2];
 }
 
-void fifo_poll_packet(uint32_t *buffer) {
+void eth_poll_packet(uint32_t *buffer) {
   puts("Polling for packet\r\n");
+
+  puts("S2MM Status: ");
+  puthex(*DMA_S2MM_DMASR);
+  puts("\r\n");
+
+  for (int i = 0; i < BD_COUNT; i++) {
+    volatile struct DMADesc *current =
+        (struct DMADesc *)((uint32_t)&rxBdSpace[i] + UNCACHED_MEMORY_OFFSET);
+    if (i != BD_COUNT - 1) {
+      current->nextDescLo =
+          ((uint32_t)&rxBdSpace[i + 1]) - PHYSICAL_MEMORY_OFFSET;
+      current->nextDescHi = 0;
+    } else {
+      current->nextDescLo = ((uint32_t)&rxBdSpace[0]) - PHYSICAL_MEMORY_OFFSET;
+      current->nextDescHi = 0;
+    }
+    current->bufferAddrLo = ((uint32_t)&rxBufSpace[i]) - PHYSICAL_MEMORY_OFFSET;
+    current->bufferAddrHi = 0;
+    current->reserved[0] = current->reserved[1] = 0;
+    current->control = BUFFER_SIZE;
+    current->status = 0;
+    current->application[0] = 0;
+    current->application[1] = 0;
+    current->application[2] = 0;
+    current->application[3] = 0;
+    current->application[4] = 0;
+    current->padding[0] = 0;
+    current->padding[1] = 0;
+    current->padding[2] = 0;
+  }
+
+  *DMA_S2MM_CURDESC = ((uint32_t)&rxBdSpace[0]) - PHYSICAL_MEMORY_OFFSET;
+  *DMA_S2MM_CURDESC_HI = 0;
+
+  *DMA_S2MM_DMACR = 1 << 0;
+
+  *DMA_S2MM_TAILDESC =
+      ((uint32_t)&rxBdSpace[BD_COUNT - 1]) - PHYSICAL_MEMORY_OFFSET;
+  *DMA_S2MM_TAILDESC_HI = 0;
+
+  int index = 0;
+  while (1) {
+    volatile struct DMADesc *current =
+        (struct DMADesc *)((uint32_t)&rxBdSpace[index] +
+                           UNCACHED_MEMORY_OFFSET);
+    if (current->status) {
+      puts("Desc is filled with status ");
+      puthex(current->status);
+      puts("\r\n");
+
+      uint32_t len = (uint16_t)current->status;
+      uint8_t *buffer =
+          (uint8_t *)((uint32_t)&rxBufSpace[index][0] + UNCACHED_MEMORY_OFFSET);
+      for (int i = 0; i < len; i++) {
+        puthex_u8(buffer[i]);
+      }
+      puts("\r\n");
+
+      current->reserved[0] = current->reserved[1] = 0;
+      current->control = BUFFER_SIZE;
+      current->status = 0;
+      current->application[0] = 0;
+      current->application[1] = 0;
+      current->application[2] = 0;
+      current->application[3] = 0;
+      current->application[4] = 0;
+      current->padding[0] = 0;
+      current->padding[1] = 0;
+      current->padding[2] = 0;
+
+      *DMA_S2MM_TAILDESC =
+          ((uint32_t)&rxBdSpace[index]) - PHYSICAL_MEMORY_OFFSET;
+      *DMA_S2MM_TAILDESC_HI = 0;
+
+      index++;
+      if (index == BD_COUNT) {
+        index = 0;
+      }
+    }
+  }
+  /*
   // reset
   *FIFO_RDFR = 0xA5;
   while (1) {
+    if ((*FIFO_ISR & (1 << 30)) == 1) {
+      // clear
+      *FIFO_ISR = *FIFO_ISR;
+      // reset
+      *FIFO_RDFR = 0xA5;
+      puts("FIFO overrun\r\n");
+    }
     if (*FIFO_RDFO) {
       uint32_t real_len = *FIFO_RLR;
       uint32_t len = real_len / 4;
@@ -166,4 +300,5 @@ void fifo_poll_packet(uint32_t *buffer) {
       puts("\r\n");
     }
   }
+  */
 }
