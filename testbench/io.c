@@ -11,6 +11,11 @@ volatile uint8_t *SPI_TRANSMIT = (uint8_t *)0xBFE10068;
 volatile uint8_t *SPI_RECEIVE = (uint8_t *)0xBFE1006C;
 volatile uint32_t *SPI_SLAVESELECT = (uint32_t *)0xBFE10070;
 
+volatile uint32_t *FIFO_RDFR = (uint32_t *)0xBFB00018;
+volatile uint32_t *FIFO_RDFO = (uint32_t *)0xBFB0001C;
+volatile uint32_t *FIFO_RDFD = (uint32_t *)0xBFB00020;
+volatile uint32_t *FIFO_RLR = (uint32_t *)0xBFB00024;
+
 void putc(char ch) {
   while (*UART_STAT & 0x8)
     ;
@@ -42,6 +47,13 @@ void puts(char *s) {
   }
 }
 
+void putdec(uint32_t num) {
+  if (num >= 10) {
+    putdec(num / 10);
+  }
+  putc('0' + (num % 10));
+}
+
 void puthex(uint32_t num) {
   int i, temp;
   for (i = 7; i >= 0; i--) {
@@ -56,6 +68,15 @@ void puthex(uint32_t num) {
   }
 }
 
+void puthex_be(uint32_t num) {
+  uint32_t le;
+  le = (num & 0xFF) << 24;
+  le |= (num & 0xFF00) << 8;
+  le |= (num & 0xFF0000) >> 8;
+  le |= (num & 0xFF000000) >> 24;
+  puthex(le);
+}
+
 uint32_t spi_status() { return *SPI_STATUS; }
 uint32_t spi_control() { return *SPI_CONTROL; }
 
@@ -67,7 +88,8 @@ void spi_enable() {
   // tx fifo reset
   // master mode
   // enable
-  *SPI_CONTROL = (1 << 8) | (1 << 7) | (1 << 6) | (1 << 5) | (1 << 2) | (1 << 1);
+  *SPI_CONTROL =
+      (1 << 8) | (1 << 7) | (1 << 6) | (1 << 5) | (1 << 2) | (1 << 1);
 }
 
 void spi_transfer(uint8_t *buffer, uint8_t len) {
@@ -83,7 +105,7 @@ void spi_transfer(uint8_t *buffer, uint8_t len) {
 
     // enable trans inhibit
     *SPI_CONTROL = *SPI_CONTROL | (1 << 8);
-    
+
     // if rx not empty
     while ((*SPI_STATUS & (1 << 0)) == 0) {
       uint8_t data = *SPI_RECEIVE;
@@ -122,4 +144,26 @@ uint8_t spi_read_register(uint8_t addr) {
   puts("\r\n");
 
   return readBuffer[2];
+}
+
+void fifo_poll_packet(uint32_t *buffer) {
+  puts("Polling for packet\r\n");
+  // reset
+  *FIFO_RDFR = 0xA5;
+  while (1) {
+    if (*FIFO_RDFO) {
+      uint32_t real_len = *FIFO_RLR;
+      uint32_t len = real_len / 4;
+      puts("Got packet of length ");
+      putdec(real_len);
+      puts("\r\n");
+      puts("Data: ");
+      for (uint32_t i = 0; i < len; i++) {
+        uint32_t data = *FIFO_RDFD;
+        buffer[i] = data;
+        puthex_be(data);
+      }
+      puts("\r\n");
+    }
+  }
 }

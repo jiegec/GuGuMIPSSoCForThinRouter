@@ -1,5 +1,6 @@
 #include "io.h"
 char buffer[1024];
+uint32_t packet[1024];
 
 int strequ(char *a, char *b) {
   while (*a && *b) {
@@ -24,7 +25,7 @@ void main() {
       puts("SPI control: ");
       puthex(spi_control());
       puts("\r\n");
-    } else if (strequ(buffer, "eth")) {
+    } else if (strequ(buffer, "setup")) {
       spi_enable();
       // P1-P4 Tag Removal
       spi_write_register(16, 2);
@@ -44,6 +45,8 @@ void main() {
       if (spi_read_register(84) != 5) {
         puts("Warning: SPI might not working properly");
       }
+    } else if (strequ(buffer, "poll")) {
+      fifo_poll_packet(packet);
     } else {
       puts("Nothing to do\r\n");
     }
