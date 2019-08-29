@@ -21,6 +21,29 @@ void main() {
       puts("SPI status: ");
       puthex(spi_status());
       puts("\r\n");
+      puts("SPI control: ");
+      puthex(spi_control());
+      puts("\r\n");
+    } else if (strequ(buffer, "eth")) {
+      spi_enable();
+      // P1-P4 Tag Removal
+      spi_write_register(16, 2);
+      spi_write_register(32, 2);
+      spi_write_register(48, 2);
+      spi_write_register(64, 2);
+      // P5 Tag Removal
+      spi_write_register(80, 4);
+      // P1-P5 PVID
+      spi_write_register(20, 1);
+      spi_write_register(36, 2);
+      spi_write_register(52, 3);
+      spi_write_register(68, 4);
+      spi_write_register(84, 5);
+
+      // confirms that register written is correct
+      if (spi_read_register(84) != 5) {
+        puts("Warning: SPI might not working properly");
+      }
     } else {
       puts("Nothing to do\r\n");
     }
