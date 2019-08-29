@@ -47,6 +47,19 @@ module top(
     output flash_we_n,
     inout [15:0] flash_d,
 
+    input [3:0] eth_rgmii_rd,
+    input eth_rgmii_rx_ctl,
+    input eth_rgmii_rxc,
+    output [3:0] eth_rgmii_td,
+    output eth_rgmii_tx_ctl,
+    output eth_rgmii_txc,
+    output eth_rst,
+
+    inout eth_spi_io0_io, // MOSI
+    inout eth_spi_io1_io, // MISO
+    inout eth_spi_sck_io,
+    inout eth_spi_ss_io,
+
     input uart_rxd,
     output uart_txd,
 
@@ -90,6 +103,19 @@ module top(
         .flash_rpn(flash_rp_n),
         .flash_wen(flash_we_n),
         .flash_wait(0),
+
+        .eth_rgmii_rd(eth_rgmii_rd),
+        .eth_rgmii_rx_ctl(eth_rgmii_rx_ctl),
+        .eth_rgmii_rxc(eth_rgmii_rxc),
+        .eth_rgmii_td(eth_rgmii_td),
+        .eth_rgmii_tx_ctl(eth_rgmii_tx_ctl),
+        .eth_rgmii_txc(eth_rgmii_txc),
+        .eth_rst(eth_rst),
+
+        .eth_spi_io0_io(eth_spi_io0_io),
+        .eth_spi_io1_io(eth_spi_io1_io),
+        .eth_spi_sck_io(eth_spi_sck_io),
+        .eth_spi_ss_io(eth_spi_ss_io),
 
         .uart_rxd(uart_rxd),
         .uart_txd(uart_txd)

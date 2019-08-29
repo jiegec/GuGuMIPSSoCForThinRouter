@@ -163,6 +163,8 @@ proc create_root_design { parentCell } {
 
   # Create interface ports
   set base_ram [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:emc_rtl:1.0 base_ram ]
+  set eth_rgmii [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:rgmii_rtl:1.0 eth_rgmii ]
+  set eth_spi [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:spi_rtl:1.0 eth_spi ]
   set ext_ram [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:emc_rtl:1.0 ext_ram ]
   set flash [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:emc_rtl:1.0 flash ]
   set uart [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:uart_rtl:1.0 uart ]
@@ -172,6 +174,10 @@ proc create_root_design { parentCell } {
   set_property -dict [ list \
    CONFIG.FREQ_HZ {50000000} \
  ] $clk
+  set eth_rst [ create_bd_port -dir O -from 0 -to 0 -type rst eth_rst ]
+  set_property -dict [ list \
+   CONFIG.POLARITY {ACTIVE_LOW} \
+ ] $eth_rst
   set reset [ create_bd_port -dir I -type rst reset ]
   set_property -dict [ list \
    CONFIG.POLARITY {ACTIVE_HIGH} \
@@ -241,10 +247,88 @@ proc create_root_design { parentCell } {
    CONFIG.C_MEM0_WIDTH {16} \
  ] $axi_emc_flash
 
+  # Create instance: axi_eth_spi, and set properties
+  set axi_eth_spi [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_quad_spi:3.2 axi_eth_spi ]
+  set_property -dict [ list \
+   CONFIG.C_FIFO_DEPTH {0} \
+   CONFIG.C_USE_STARTUP {0} \
+   CONFIG.C_USE_STARTUP_INT {0} \
+   CONFIG.FIFO_INCLUDED {0} \
+ ] $axi_eth_spi
+
+  # Create instance: axi_ethernet_0, and set properties
+  set axi_ethernet_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_ethernet:7.1 axi_ethernet_0 ]
+  set_property -dict [ list \
+   CONFIG.Frame_Filter {false} \
+   CONFIG.PHY_TYPE {RGMII} \
+   CONFIG.RXVLAN_TAG {true} \
+   CONFIG.Statistics_Counters {false} \
+   CONFIG.SupportLevel {1} \
+   CONFIG.TXVLAN_TAG {true} \
+ ] $axi_ethernet_0
+
+  set_property -dict [ list \
+   CONFIG.POLARITY {ACTIVE_LOW} \
+ ] [get_bd_pins /axi_ethernet_0/axi_rxd_arstn]
+
+  set_property -dict [ list \
+   CONFIG.POLARITY {ACTIVE_LOW} \
+ ] [get_bd_pins /axi_ethernet_0/axi_rxs_arstn]
+
+  set_property -dict [ list \
+   CONFIG.POLARITY {ACTIVE_LOW} \
+ ] [get_bd_pins /axi_ethernet_0/axi_txc_arstn]
+
+  set_property -dict [ list \
+   CONFIG.POLARITY {ACTIVE_LOW} \
+ ] [get_bd_pins /axi_ethernet_0/axi_txd_arstn]
+
+  set_property -dict [ list \
+   CONFIG.ASSOCIATED_BUSIF {m_axis_rxd:m_axis_rxs:s_axis_txc:s_axis_txd} \
+   CONFIG.ASSOCIATED_RESET {axi_rxd_arstn:axi_rxs_arstn:axi_txc_arstn:axi_txd_arstn} \
+ ] [get_bd_pins /axi_ethernet_0/axis_clk]
+
+  set_property -dict [ list \
+   CONFIG.FREQ_HZ {125000000} \
+ ] [get_bd_pins /axi_ethernet_0/gtx_clk]
+
+  set_property -dict [ list \
+   CONFIG.SENSITIVITY {LEVEL_HIGH} \
+ ] [get_bd_pins /axi_ethernet_0/interrupt]
+
+  set_property -dict [ list \
+   CONFIG.SENSITIVITY {EDGE_RISING} \
+ ] [get_bd_pins /axi_ethernet_0/mac_irq]
+
+  set_property -dict [ list \
+   CONFIG.POLARITY {ACTIVE_LOW} \
+ ] [get_bd_pins /axi_ethernet_0/phy_rst_n]
+
+  set_property -dict [ list \
+   CONFIG.ASSOCIATED_BUSIF {s_axi} \
+   CONFIG.ASSOCIATED_RESET {s_axi_lite_resetn} \
+ ] [get_bd_pins /axi_ethernet_0/s_axi_lite_clk]
+
+  set_property -dict [ list \
+   CONFIG.POLARITY {ACTIVE_LOW} \
+ ] [get_bd_pins /axi_ethernet_0/s_axi_lite_resetn]
+
+  # Create instance: axi_ethernet_0_fifo, and set properties
+  set axi_ethernet_0_fifo [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_fifo_mm_s:4.2 axi_ethernet_0_fifo ]
+  set_property -dict [ list \
+   CONFIG.C_HAS_AXIS_TKEEP {true} \
+   CONFIG.C_RX_FIFO_DEPTH {4096} \
+   CONFIG.C_RX_FIFO_PE_THRESHOLD {10} \
+   CONFIG.C_RX_FIFO_PF_THRESHOLD {4000} \
+   CONFIG.C_TX_FIFO_DEPTH {4096} \
+   CONFIG.C_TX_FIFO_PE_THRESHOLD {10} \
+   CONFIG.C_TX_FIFO_PF_THRESHOLD {4000} \
+ ] $axi_ethernet_0_fifo
+
   # Create instance: axi_mem_intercon, and set properties
   set axi_mem_intercon [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_interconnect:2.1 axi_mem_intercon ]
   set_property -dict [ list \
-   CONFIG.NUM_MI {6} \
+   CONFIG.NUM_MI {9} \
    CONFIG.NUM_SI {2} \
  ] $axi_mem_intercon
 
@@ -263,10 +347,14 @@ proc create_root_design { parentCell } {
    CONFIG.CLKOUT2_PHASE_ERROR {164.985} \
    CONFIG.CLKOUT2_REQUESTED_OUT_FREQ {10.000} \
    CONFIG.CLKOUT2_USED {true} \
+   CONFIG.CLKOUT3_REQUESTED_OUT_FREQ {200} \
+   CONFIG.CLKOUT3_USED {true} \
+   CONFIG.CLKOUT4_REQUESTED_OUT_FREQ {125} \
+   CONFIG.CLKOUT4_USED {true} \
    CONFIG.MMCM_CLKOUT0_DIVIDE_F {20.000} \
    CONFIG.MMCM_CLKOUT1_DIVIDE {100} \
    CONFIG.MMCM_DIVCLK_DIVIDE {1} \
-   CONFIG.NUM_OUT_CLKS {2} \
+   CONFIG.NUM_OUT_CLKS {4} \
  ] $clk_wiz
 
   # Create instance: jtag_axi_0, and set properties
@@ -285,6 +373,9 @@ proc create_root_design { parentCell } {
   
   # Create instance: rst_clk_50M, and set properties
   set rst_clk_50M [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_clk_50M ]
+
+  # Create instance: rst_clk_wiz_50M, and set properties
+  set rst_clk_wiz_50M [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_clk_wiz_50M ]
 
   # Create instance: system_ila_0, and set properties
   set system_ila_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 system_ila_0 ]
@@ -334,12 +425,20 @@ proc create_root_design { parentCell } {
   connect_bd_intf_net -intf_net axi_emc_0_EMC_INTF [get_bd_intf_ports flash] [get_bd_intf_pins axi_emc_flash/EMC_INTF]
   connect_bd_intf_net -intf_net axi_emc_base_EMC_INTF [get_bd_intf_ports base_ram] [get_bd_intf_pins axi_emc_base/EMC_INTF]
   connect_bd_intf_net -intf_net axi_emc_ext_EMC_INTF [get_bd_intf_ports ext_ram] [get_bd_intf_pins axi_emc_ext/EMC_INTF]
+  connect_bd_intf_net -intf_net axi_ethernet_0_fifo_AXI_STR_TXC [get_bd_intf_pins axi_ethernet_0/s_axis_txc] [get_bd_intf_pins axi_ethernet_0_fifo/AXI_STR_TXC]
+  connect_bd_intf_net -intf_net axi_ethernet_0_fifo_AXI_STR_TXD [get_bd_intf_pins axi_ethernet_0/s_axis_txd] [get_bd_intf_pins axi_ethernet_0_fifo/AXI_STR_TXD]
+  connect_bd_intf_net -intf_net axi_ethernet_0_m_axis_rxd [get_bd_intf_pins axi_ethernet_0/m_axis_rxd] [get_bd_intf_pins axi_ethernet_0_fifo/AXI_STR_RXD]
+  connect_bd_intf_net -intf_net axi_ethernet_0_rgmii [get_bd_intf_ports eth_rgmii] [get_bd_intf_pins axi_ethernet_0/rgmii]
   connect_bd_intf_net -intf_net axi_mem_intercon_M00_AXI [get_bd_intf_pins axi_bram_ctrl_0/S_AXI] [get_bd_intf_pins axi_mem_intercon/M00_AXI]
   connect_bd_intf_net -intf_net axi_mem_intercon_M01_AXI [get_bd_intf_pins axi_mem_intercon/M01_AXI] [get_bd_intf_pins axi_uartlite_0/S_AXI]
   connect_bd_intf_net -intf_net axi_mem_intercon_M02_AXI [get_bd_intf_pins axi_bram_ctrl_1/S_AXI] [get_bd_intf_pins axi_mem_intercon/M02_AXI]
   connect_bd_intf_net -intf_net axi_mem_intercon_M03_AXI [get_bd_intf_pins axi_emc_base/S_AXI_MEM] [get_bd_intf_pins axi_mem_intercon/M03_AXI]
   connect_bd_intf_net -intf_net axi_mem_intercon_M04_AXI [get_bd_intf_pins axi_emc_ext/S_AXI_MEM] [get_bd_intf_pins axi_mem_intercon/M04_AXI]
   connect_bd_intf_net -intf_net axi_mem_intercon_M05_AXI [get_bd_intf_pins axi_emc_flash/S_AXI_MEM] [get_bd_intf_pins axi_mem_intercon/M05_AXI]
+  connect_bd_intf_net -intf_net axi_mem_intercon_M06_AXI [get_bd_intf_pins axi_ethernet_0/s_axi] [get_bd_intf_pins axi_mem_intercon/M06_AXI]
+  connect_bd_intf_net -intf_net axi_mem_intercon_M07_AXI [get_bd_intf_pins axi_ethernet_0_fifo/S_AXI] [get_bd_intf_pins axi_mem_intercon/M07_AXI]
+  connect_bd_intf_net -intf_net axi_mem_intercon_M08_AXI [get_bd_intf_pins axi_eth_spi/AXI_LITE] [get_bd_intf_pins axi_mem_intercon/M08_AXI]
+  connect_bd_intf_net -intf_net axi_quad_spi_SPI_0 [get_bd_intf_ports eth_spi] [get_bd_intf_pins axi_eth_spi/SPI_0]
   connect_bd_intf_net -intf_net axi_uartlite_0_UART [get_bd_intf_ports uart] [get_bd_intf_pins axi_uartlite_0/UART]
   connect_bd_intf_net -intf_net jtag_axi_0_M_AXI [get_bd_intf_pins axi_mem_intercon/S01_AXI] [get_bd_intf_pins jtag_axi_0/M_AXI]
   connect_bd_intf_net -intf_net mycpu_top_0_interface_aximm [get_bd_intf_pins axi_mem_intercon/S00_AXI] [get_bd_intf_pins mycpu_top_0/interface_aximm]
@@ -347,10 +446,16 @@ connect_bd_intf_net -intf_net [get_bd_intf_nets mycpu_top_0_interface_aximm] [ge
 set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_intf_nets mycpu_top_0_interface_aximm]
 
   # Create port connections
-  connect_bd_net -net clk_1 [get_bd_pins axi_bram_ctrl_0/s_axi_aclk] [get_bd_pins axi_bram_ctrl_1/s_axi_aclk] [get_bd_pins axi_mem_intercon/ACLK] [get_bd_pins axi_mem_intercon/M00_ACLK] [get_bd_pins axi_mem_intercon/M01_ACLK] [get_bd_pins axi_mem_intercon/M02_ACLK] [get_bd_pins axi_mem_intercon/S00_ACLK] [get_bd_pins axi_mem_intercon/S01_ACLK] [get_bd_pins axi_uartlite_0/s_axi_aclk] [get_bd_pins clk_wiz/clk_out1] [get_bd_pins jtag_axi_0/aclk] [get_bd_pins mycpu_top_0/aclk] [get_bd_pins system_ila_0/clk]
+  connect_bd_net -net axi_ethernet_0_fifo_mm2s_cntrl_reset_out_n [get_bd_pins axi_ethernet_0/axi_txc_arstn] [get_bd_pins axi_ethernet_0_fifo/mm2s_cntrl_reset_out_n]
+  connect_bd_net -net axi_ethernet_0_fifo_mm2s_prmry_reset_out_n [get_bd_pins axi_ethernet_0/axi_txd_arstn] [get_bd_pins axi_ethernet_0_fifo/mm2s_prmry_reset_out_n]
+  connect_bd_net -net axi_ethernet_0_fifo_s2mm_prmry_reset_out_n [get_bd_pins axi_ethernet_0/axi_rxd_arstn] [get_bd_pins axi_ethernet_0/axi_rxs_arstn] [get_bd_pins axi_ethernet_0_fifo/s2mm_prmry_reset_out_n]
+  connect_bd_net -net axi_ethernet_0_phy_rst_n [get_bd_ports eth_rst] [get_bd_pins axi_ethernet_0/phy_rst_n]
+  connect_bd_net -net clk_1 [get_bd_pins axi_bram_ctrl_0/s_axi_aclk] [get_bd_pins axi_bram_ctrl_1/s_axi_aclk] [get_bd_pins axi_eth_spi/s_axi_aclk] [get_bd_pins axi_ethernet_0/axis_clk] [get_bd_pins axi_ethernet_0/s_axi_lite_clk] [get_bd_pins axi_ethernet_0_fifo/s_axi_aclk] [get_bd_pins axi_mem_intercon/ACLK] [get_bd_pins axi_mem_intercon/M00_ACLK] [get_bd_pins axi_mem_intercon/M01_ACLK] [get_bd_pins axi_mem_intercon/M02_ACLK] [get_bd_pins axi_mem_intercon/M06_ACLK] [get_bd_pins axi_mem_intercon/M07_ACLK] [get_bd_pins axi_mem_intercon/M08_ACLK] [get_bd_pins axi_mem_intercon/S00_ACLK] [get_bd_pins axi_mem_intercon/S01_ACLK] [get_bd_pins axi_uartlite_0/s_axi_aclk] [get_bd_pins clk_wiz/clk_out1] [get_bd_pins jtag_axi_0/aclk] [get_bd_pins mycpu_top_0/aclk] [get_bd_pins rst_clk_wiz_50M/slowest_sync_clk] [get_bd_pins system_ila_0/clk]
   connect_bd_net -net clk_2 [get_bd_ports clk] [get_bd_pins clk_wiz/clk_in1]
-  connect_bd_net -net clk_wiz_clk_out2 [get_bd_pins axi_emc_base/rdclk] [get_bd_pins axi_emc_base/s_axi_aclk] [get_bd_pins axi_emc_ext/rdclk] [get_bd_pins axi_emc_ext/s_axi_aclk] [get_bd_pins axi_emc_flash/rdclk] [get_bd_pins axi_emc_flash/s_axi_aclk] [get_bd_pins axi_mem_intercon/M03_ACLK] [get_bd_pins axi_mem_intercon/M04_ACLK] [get_bd_pins axi_mem_intercon/M05_ACLK] [get_bd_pins clk_wiz/clk_out2] [get_bd_pins rst_clk_50M/slowest_sync_clk]
-  connect_bd_net -net clk_wiz_locked [get_bd_pins clk_wiz/locked] [get_bd_pins rst_clk_50M/dcm_locked]
+  connect_bd_net -net clk_wiz_clk_out2 [get_bd_pins axi_emc_base/rdclk] [get_bd_pins axi_emc_base/s_axi_aclk] [get_bd_pins axi_emc_ext/rdclk] [get_bd_pins axi_emc_ext/s_axi_aclk] [get_bd_pins axi_emc_flash/rdclk] [get_bd_pins axi_emc_flash/s_axi_aclk] [get_bd_pins axi_eth_spi/ext_spi_clk] [get_bd_pins axi_mem_intercon/M03_ACLK] [get_bd_pins axi_mem_intercon/M04_ACLK] [get_bd_pins axi_mem_intercon/M05_ACLK] [get_bd_pins clk_wiz/clk_out2] [get_bd_pins rst_clk_50M/slowest_sync_clk]
+  connect_bd_net -net clk_wiz_clk_out3 [get_bd_pins axi_ethernet_0/ref_clk] [get_bd_pins clk_wiz/clk_out3]
+  connect_bd_net -net clk_wiz_clk_out4 [get_bd_pins axi_ethernet_0/gtx_clk] [get_bd_pins clk_wiz/clk_out4]
+  connect_bd_net -net clk_wiz_locked [get_bd_pins clk_wiz/locked] [get_bd_pins rst_clk_50M/dcm_locked] [get_bd_pins rst_clk_wiz_50M/dcm_locked]
   connect_bd_net -net cp0_cause_o [get_bd_pins mycpu_top_0/cp0_cause_o] [get_bd_pins system_ila_0/probe4]
 set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_nets cp0_cause_o]
   connect_bd_net -net cp0_epc_o [get_bd_pins mycpu_top_0/cp0_epc_o] [get_bd_pins system_ila_0/probe6]
@@ -369,8 +474,9 @@ set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_nets debug_wb_rf_wnum]
   connect_bd_net -net rst_clk_50M_interconnect_aresetn [get_bd_pins axi_mem_intercon/ARESETN] [get_bd_pins rst_clk_50M/interconnect_aresetn]
   connect_bd_net -net rst_clk_50M_mb_reset [get_bd_pins rst_clk_50M/mb_reset] [get_bd_pins util_vector_logic_0/Op1]
   connect_bd_net -net rst_clk_50M_peripheral_aresetn [get_bd_pins axi_bram_ctrl_0/s_axi_aresetn] [get_bd_pins axi_bram_ctrl_1/s_axi_aresetn] [get_bd_pins axi_emc_base/s_axi_aresetn] [get_bd_pins axi_emc_ext/s_axi_aresetn] [get_bd_pins axi_emc_flash/s_axi_aresetn] [get_bd_pins axi_mem_intercon/M00_ARESETN] [get_bd_pins axi_mem_intercon/M01_ARESETN] [get_bd_pins axi_mem_intercon/M02_ARESETN] [get_bd_pins axi_mem_intercon/M03_ARESETN] [get_bd_pins axi_mem_intercon/M04_ARESETN] [get_bd_pins axi_mem_intercon/M05_ARESETN] [get_bd_pins axi_mem_intercon/S00_ARESETN] [get_bd_pins axi_mem_intercon/S01_ARESETN] [get_bd_pins axi_uartlite_0/s_axi_aresetn] [get_bd_pins jtag_axi_0/aresetn] [get_bd_pins rst_clk_50M/peripheral_aresetn] [get_bd_pins system_ila_0/resetn]
+  connect_bd_net -net rst_clk_wiz_50M_peripheral_aresetn [get_bd_pins axi_eth_spi/s_axi_aresetn] [get_bd_pins axi_ethernet_0/s_axi_lite_resetn] [get_bd_pins axi_ethernet_0_fifo/s_axi_aresetn] [get_bd_pins axi_mem_intercon/M06_ARESETN] [get_bd_pins axi_mem_intercon/M07_ARESETN] [get_bd_pins axi_mem_intercon/M08_ARESETN] [get_bd_pins rst_clk_wiz_50M/peripheral_aresetn]
   connect_bd_net -net util_vector_logic_0_Res [get_bd_pins mycpu_top_0/aresetn] [get_bd_pins util_vector_logic_0/Res]
-  connect_bd_net -net xlconstant_0_dout [get_bd_pins clk_wiz/reset] [get_bd_pins xlconstant_0/dout]
+  connect_bd_net -net xlconstant_0_dout [get_bd_pins clk_wiz/reset] [get_bd_pins rst_clk_wiz_50M/ext_reset_in] [get_bd_pins xlconstant_0/dout]
 
   # Create address segments
   create_bd_addr_seg -range 0x00002000 -offset 0x1FC00000 [get_bd_addr_spaces jtag_axi_0/Data] [get_bd_addr_segs axi_bram_ctrl_0/S_AXI/Mem0] SEG_axi_bram_ctrl_0_Mem0
@@ -378,12 +484,18 @@ set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_nets debug_wb_rf_wnum]
   create_bd_addr_seg -range 0x00400000 -offset 0x00000000 [get_bd_addr_spaces jtag_axi_0/Data] [get_bd_addr_segs axi_emc_base/S_AXI_MEM/Mem0] SEG_axi_emc_0_Mem0
   create_bd_addr_seg -range 0x00800000 -offset 0x00800000 [get_bd_addr_spaces jtag_axi_0/Data] [get_bd_addr_segs axi_emc_flash/S_AXI_MEM/Mem0] SEG_axi_emc_0_Mem01
   create_bd_addr_seg -range 0x00400000 -offset 0x00400000 [get_bd_addr_spaces jtag_axi_0/Data] [get_bd_addr_segs axi_emc_ext/S_AXI_MEM/Mem0] SEG_axi_emc_ext_Mem0
+  create_bd_addr_seg -range 0x00040000 -offset 0x1FA00000 [get_bd_addr_spaces jtag_axi_0/Data] [get_bd_addr_segs axi_ethernet_0/s_axi/Reg0] SEG_axi_ethernet_0_Reg0
+  create_bd_addr_seg -range 0x00010000 -offset 0x1FB00000 [get_bd_addr_spaces jtag_axi_0/Data] [get_bd_addr_segs axi_ethernet_0_fifo/S_AXI/Mem0] SEG_axi_ethernet_0_fifo_Mem0
+  create_bd_addr_seg -range 0x00010000 -offset 0x1FE10000 [get_bd_addr_spaces jtag_axi_0/Data] [get_bd_addr_segs axi_eth_spi/AXI_LITE/Reg] SEG_axi_quad_spi_Reg
   create_bd_addr_seg -range 0x00010000 -offset 0x1FD00000 [get_bd_addr_spaces jtag_axi_0/Data] [get_bd_addr_segs axi_uartlite_0/S_AXI/Reg] SEG_axi_uartlite_0_Reg
   create_bd_addr_seg -range 0x00002000 -offset 0x1FC00000 [get_bd_addr_spaces mycpu_top_0/interface_aximm] [get_bd_addr_segs axi_bram_ctrl_0/S_AXI/Mem0] SEG_axi_bram_ctrl_0_Mem0
   create_bd_addr_seg -range 0x00002000 -offset 0x07FFE000 [get_bd_addr_spaces mycpu_top_0/interface_aximm] [get_bd_addr_segs axi_bram_ctrl_1/S_AXI/Mem0] SEG_axi_bram_ctrl_1_Mem0
   create_bd_addr_seg -range 0x00400000 -offset 0x00000000 [get_bd_addr_spaces mycpu_top_0/interface_aximm] [get_bd_addr_segs axi_emc_base/S_AXI_MEM/Mem0] SEG_axi_emc_0_Mem0
   create_bd_addr_seg -range 0x00800000 -offset 0x00800000 [get_bd_addr_spaces mycpu_top_0/interface_aximm] [get_bd_addr_segs axi_emc_flash/S_AXI_MEM/Mem0] SEG_axi_emc_0_Mem03
   create_bd_addr_seg -range 0x00400000 -offset 0x00400000 [get_bd_addr_spaces mycpu_top_0/interface_aximm] [get_bd_addr_segs axi_emc_ext/S_AXI_MEM/Mem0] SEG_axi_emc_ext_Mem0
+  create_bd_addr_seg -range 0x00040000 -offset 0x1FA00000 [get_bd_addr_spaces mycpu_top_0/interface_aximm] [get_bd_addr_segs axi_ethernet_0/s_axi/Reg0] SEG_axi_ethernet_0_Reg0
+  create_bd_addr_seg -range 0x00010000 -offset 0x1FB00000 [get_bd_addr_spaces mycpu_top_0/interface_aximm] [get_bd_addr_segs axi_ethernet_0_fifo/S_AXI/Mem0] SEG_axi_ethernet_0_fifo_Mem0
+  create_bd_addr_seg -range 0x00010000 -offset 0x1FE10000 [get_bd_addr_spaces mycpu_top_0/interface_aximm] [get_bd_addr_segs axi_eth_spi/AXI_LITE/Reg] SEG_axi_quad_spi_Reg
   create_bd_addr_seg -range 0x00010000 -offset 0x1FD00000 [get_bd_addr_spaces mycpu_top_0/interface_aximm] [get_bd_addr_segs axi_uartlite_0/S_AXI/Reg] SEG_axi_uartlite_0_Reg
 
 
