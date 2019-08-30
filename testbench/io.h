@@ -5,6 +5,7 @@ uint8_t getc();
 void gets(char *s);
 void puts(char *s);
 void puthex(uint32_t num);
+void putdec(uint32_t num);
 
 uint32_t spi_status();
 uint32_t spi_control();

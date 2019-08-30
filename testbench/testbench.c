@@ -1,4 +1,6 @@
 #include "io.h"
+#include "router_hal.h"
+
 char buffer[1024];
 uint32_t packet[1024];
 
@@ -11,8 +13,19 @@ int strequ(char *a, char *b) {
   return *a == *b;
 }
 
-__attribute((section(".text.init")))
-void main() {
+in_addr_t if_addrs[N_IFACE_ON_BOARD] = {0x0a000001, 0x0a000101, 0x0a000201,
+                                        0x0a000301};
+
+extern uint32_t _bss_start;
+extern uint32_t _bss_end;
+
+__attribute((section(".text.init"))) void main() {
+  uint32_t *ptr = &_bss_start;
+  uint32_t *end = &_bss_end;
+  while (ptr != end) {
+    *ptr++  = 0;
+  }
+
   puts("ThinRouter TestBench\r\n");
   while (1) {
     puts(">> ");
@@ -26,20 +39,23 @@ void main() {
       puthex(spi_control());
       puts("\r\n");
     } else if (strequ(buffer, "setup")) {
-      spi_enable();
-      // P1-P4 Tag Removal
-      spi_write_register(16, 2);
-      spi_write_register(32, 2);
-      spi_write_register(48, 2);
-      spi_write_register(64, 2);
-      // P5 Tag Removal
-      spi_write_register(80, 4);
-      // P1-P5 PVID
-      spi_write_register(20, 1);
-      spi_write_register(36, 2);
-      spi_write_register(52, 3);
-      spi_write_register(68, 4);
-      spi_write_register(84, 5);
+      HAL_Init(1, if_addrs);
+      /*
+          spi_enable();
+          // P1-P4 Tag Removal
+          spi_write_register(16, 2);
+          spi_write_register(32, 2);
+          spi_write_register(48, 2);
+          spi_write_register(64, 2);
+          // P5 Tag Removal
+          spi_write_register(80, 4);
+          // P1-P5 PVID
+          spi_write_register(20, 1);
+          spi_write_register(36, 2);
+          spi_write_register(52, 3);
+          spi_write_register(68, 4);
+          spi_write_register(84, 5);
+          */
 
       // confirms that register written is correct
       if (spi_read_register(84) != 5) {

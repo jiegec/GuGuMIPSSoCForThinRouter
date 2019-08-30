@@ -17,12 +17,11 @@ extern volatile uint32_t *SPI_SLAVESELECT;
 void XSpi_SetSlaveSelect(XSpi *spi, uint32_t ss) { *SPI_SLAVESELECT = ~ss; }
 #define XSP_MASTER_OPTION (1 << 2)
 #define XSP_MANUAL_SSELECT_OPTION (1 << 7)
-void XSpi_SetOptions(XSpi *spi, uint32_t opt) { *SPI_CONTROL = (1 << 8) | opt; }
-void XSpi_Start(XSpi *spi) { *SPI_CONTROL = *SPI_CONTROL | 1; }
+void XSpi_SetOptions(XSpi *spi, uint32_t opt) { *SPI_CONTROL = (1 << 8) | opt | *SPI_CONTROL; }
+void XSpi_Start(XSpi *spi) { *SPI_CONTROL = *SPI_CONTROL | (1 << 1); }
 void XSpi_IntrGlobalDisable(XSpi *spi) {}
 
 void XSpi_Transfer(XSpi *spi, u8 *buffer, u8 *outBuffer, uint8_t len) {
-  *SPI_SLAVESELECT = 0;
   for (int i = 0; i < len; i++) {
     *SPI_TRANSMIT = buffer[i];
 
@@ -41,7 +40,6 @@ void XSpi_Transfer(XSpi *spi, u8 *buffer, u8 *outBuffer, uint8_t len) {
       buffer[i] = data;
     }
   }
-  *SPI_SLAVESELECT = 1;
 }
 
 #define XPAR_AXI_QUAD_SPI_0_DEVICE_ID 0

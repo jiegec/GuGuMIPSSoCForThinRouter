@@ -3,3 +3,4 @@
 *.gen.s
 !Makefile
 !Router-Lab
+!boot.lds
