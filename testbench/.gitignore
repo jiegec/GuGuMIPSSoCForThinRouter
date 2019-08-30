@@ -1,3 +1,5 @@
 *.o
 *.bin
 *.gen.s
+!Makefile
+!Router-Lab

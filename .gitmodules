@@ -1,3 +1,6 @@
 [submodule "GuGuMIPS"]
 	path = GuGuMIPS
 	url = git@github.com:jiegec/GuGuMIPS.git
+[submodule "testbench/Router-Lab"]
+	path = testbench/Router-Lab
+	url = git@github.com:z4yx/Router-Lab.git
