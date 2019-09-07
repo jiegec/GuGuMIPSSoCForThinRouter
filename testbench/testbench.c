@@ -1,5 +1,6 @@
 #include "io.h"
 #include "router_hal.h"
+#include "xil_printf.h"
 
 char buffer[1024];
 uint32_t packet[1024];
@@ -23,7 +24,7 @@ __attribute((section(".text.init"))) void main() {
   uint32_t *ptr = &_bss_start;
   uint32_t *end = &_bss_end;
   while (ptr != end) {
-    *ptr++  = 0;
+    *ptr++ = 0;
   }
 
   puts("ThinRouter TestBench\r\n");
@@ -63,6 +64,20 @@ __attribute((section(".text.init"))) void main() {
       }
     } else if (strequ(buffer, "poll")) {
       eth_poll_packet(packet);
+    } else if (strequ(buffer, "hal_poll")) {
+      while (1) {
+        macaddr_t src_mac;
+        macaddr_t dst_mac;
+        int if_index;
+        int res = HAL_ReceiveIPPacket((1 << N_IFACE_ON_BOARD) - 1,
+                                      (uint8_t *)packet, sizeof(packet),
+                                      src_mac, dst_mac, -1, &if_index);
+        xil_printf("res %d if_index %d\n", res, if_index);
+        for (int i = 0; i < res; i++) {
+          puthex_u8(((uint8_t *)packet)[i]);
+        }
+        xil_printf("\n");
+      }
     } else {
       puts("Nothing to do\r\n");
     }

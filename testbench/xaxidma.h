@@ -57,13 +57,13 @@ void XAxiDma_CfgInitialize(XAxiDma *dma, XAxiDma_Config *cfg) {}
 XAxiDma_BdRing *XAxiDma_GetRxRing(XAxiDma *dma) { return NULL; }
 XAxiDma_BdRing *XAxiDma_GetTxRing(XAxiDma *dma) { return NULL; }
 
-void memset(void *buffer, char data, uint32_t count);
+void memset(volatile void *buffer, char data, uint32_t count);
 
-void memcpy(void *to, void *from, uint32_t count);
+void memcpy(volatile void *to, volatile void *from, uint32_t count);
 
-void memmove(void *to, void *from, uint32_t count);
+void memmove(volatile void *to, volatile void *from, uint32_t count);
 
-int memcmp(void *to, void *from, uint32_t count);
+int memcmp(volatile void *to, volatile void *from, uint32_t count);
 
 #define UINTPTR uint32_t
 void XAxiDma_BdRingCreate(XAxiDma_BdRing *ring, uint32_t space, uint32_t space2,

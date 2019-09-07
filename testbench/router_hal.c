@@ -1,10 +1,10 @@
 #include "router_hal.h"
+#include "io.h"
 #include "xaxidma.h"
 #include "xaxiethernet.h"
 #include "xil_printf.h"
 #include "xspi.h"
 #include "xtmrctr.h"
-#include <stdio.h>
 
 const int IP_OFFSET = 14 + 4;
 const int ARP_LENGTH = 28;
@@ -26,14 +26,37 @@ XTmrCtr tmrCtr;
 XAxiDma_BdRing *rxRing;
 XAxiDma_BdRing *txRing;
 
-#define BD_COUNT 128
+#define BD_COUNT 16
+#define BUFFER_SIZE 2048
+#define PHYSICAL_MEMORY_OFFSET 0x80000000
+#define UNCACHED_MEMORY_OFFSET 0x20000000
 
-char rxBdSpace[XAxiDma_BdRingMemCalc(XAXIDMA_BD_MINIMUM_ALIGNMENT, BD_COUNT)]
-    __attribute__((aligned(XAXIDMA_BD_MINIMUM_ALIGNMENT)))
-    __attribute__((section(".physical")));
-char txBdSpace[XAxiDma_BdRingMemCalc(XAXIDMA_BD_MINIMUM_ALIGNMENT, BD_COUNT)]
-    __attribute__((aligned(XAXIDMA_BD_MINIMUM_ALIGNMENT)))
-    __attribute__((section(".physical")));
+extern volatile uint32_t *DMA_S2MM_DMACR;
+extern volatile uint32_t *DMA_S2MM_DMASR;
+extern volatile uint32_t *DMA_S2MM_CURDESC;
+extern volatile uint32_t *DMA_S2MM_CURDESC_HI;
+extern volatile uint32_t *DMA_S2MM_TAILDESC;
+extern volatile uint32_t *DMA_S2MM_TAILDESC_HI;
+
+struct DMADesc {
+  uint32_t nextDescLo;
+  uint32_t nextDescHi;
+  uint32_t bufferAddrLo;
+  uint32_t bufferAddrHi;
+  uint32_t reserved[2];
+  uint32_t control;
+  uint32_t status;
+  uint32_t application[5];
+  uint32_t padding[3];
+};
+
+int rxIndex;
+volatile struct DMADesc rxBdSpace[BD_COUNT]
+    __attribute__((aligned(sizeof(struct DMADesc))));
+uint8_t rxBufSpace[BD_COUNT][BUFFER_SIZE];
+volatile struct DMADesc txBdSpace[BD_COUNT]
+    __attribute__((aligned(sizeof(struct DMADesc))));
+uint8_t txBufSpace[BD_COUNT][BUFFER_SIZE];
 
 struct EthernetFrame {
   u8 dstMAC[6];
@@ -63,14 +86,38 @@ void SpiWriteRegister(u8 addr, u8 data) {
   writeBuffer[0] = 0x40 | (addr >> 7);
   writeBuffer[1] = addr << 1;
   writeBuffer[2] = data;
-  XSpi_SetSlaveSelect(&spi, 1);
-  XSpi_Transfer(&spi, writeBuffer, NULL, 3);
+  // XSpi_SetSlaveSelect(&spi, 1);
+  // XSpi_Transfer(&spi, writeBuffer, NULL, 3);
+  spi_write_register(addr, data);
   if (debugEnabled) {
     xil_printf("HAL_Init: Write SPI %d = %d\r\n", addr, data);
   }
 }
 
 void PutBackBd(XAxiDma_Bd *bd) {
+  volatile struct DMADesc *current =
+      (struct DMADesc *)((uint32_t)&rxBdSpace[rxIndex] +
+                         UNCACHED_MEMORY_OFFSET);
+  current->reserved[0] = current->reserved[1] = 0;
+  current->control = BUFFER_SIZE;
+  current->status = 0;
+  current->application[0] = 0;
+  current->application[1] = 0;
+  current->application[2] = 0;
+  current->application[3] = 0;
+  current->application[4] = 0;
+  current->padding[0] = 0;
+  current->padding[1] = 0;
+  current->padding[2] = 0;
+
+  *DMA_S2MM_TAILDESC = ((uint32_t)&rxBdSpace[rxIndex]) - PHYSICAL_MEMORY_OFFSET;
+  *DMA_S2MM_TAILDESC_HI = 0;
+
+  rxIndex++;
+  if (rxIndex == BD_COUNT) {
+    rxIndex = 0;
+  }
+  /*
   u32 addr = XAxiDma_BdGetBufAddr(bd);
   u32 len = XAxiDma_BdGetLength(bd, rxRing->MaxTransferLen);
   XAxiDma_BdRingFree(rxRing, 1, bd);
@@ -79,6 +126,7 @@ void PutBackBd(XAxiDma_Bd *bd) {
   XAxiDma_BdSetBufAddr(bd, addr);
   XAxiDma_BdSetLength(bd, len, rxRing->MaxTransferLen);
   XAxiDma_BdRingToHw(rxRing, 1, bd);
+  */
 }
 
 void WaitTxBdAvailable() {
@@ -149,32 +197,63 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
     xil_printf("HAL_Init: Enable Ethernet MAC\r\n");
   }
   XAxiEthernet_SetOptions(&axiEthernet, XAE_RECEIVER_ENABLE_OPTION |
-                                            XAE_TRANSMITTER_ENABLE_OPTION | XAE_VLAN_OPTION);
+                                            XAE_TRANSMITTER_ENABLE_OPTION |
+                                            XAE_VLAN_OPTION);
   XAxiEthernet_SetMacAddress(&axiEthernet, interface_mac);
   XAxiEthernet_Start(&axiEthernet);
 
   if (debugEnabled) {
     xil_printf("HAL_Init: Add buffer to rings\r\n");
   }
-  // rx
+
   for (int i = 0; i < BD_COUNT; i++) {
-    XAxiDma_BdRingAlloc(rxRing, 1, &bd);
-    XAxiDma_BdSetBufAddr(bd, (UINTPTR)&rxBuffers[i]);
-    XAxiDma_BdSetLength(bd, sizeof(struct EthernetFrame),
-                        rxRing->MaxTransferLen);
-    XAxiDma_BdRingToHw(rxRing, 1, bd);
+    volatile struct DMADesc *current =
+        (struct DMADesc *)((uint32_t)&rxBdSpace[i] + UNCACHED_MEMORY_OFFSET);
+    if (i != BD_COUNT - 1) {
+      current->nextDescLo =
+          ((uint32_t)&rxBdSpace[i + 1]) - PHYSICAL_MEMORY_OFFSET;
+      current->nextDescHi = 0;
+    } else {
+      current->nextDescLo = ((uint32_t)&rxBdSpace[0]) - PHYSICAL_MEMORY_OFFSET;
+      current->nextDescHi = 0;
+    }
+    current->bufferAddrLo = ((uint32_t)&rxBufSpace[i]) - PHYSICAL_MEMORY_OFFSET;
+    current->bufferAddrHi = 0;
+    current->reserved[0] = current->reserved[1] = 0;
+    current->control = BUFFER_SIZE;
+    current->status = 0;
+    current->application[0] = 0;
+    current->application[1] = 0;
+    current->application[2] = 0;
+    current->application[3] = 0;
+    current->application[4] = 0;
+    current->padding[0] = 0;
+    current->padding[1] = 0;
+    current->padding[2] = 0;
   }
 
-  // tx
-  XAxiDma_BdRingAlloc(txRing, BD_COUNT, &bd);
-  XAxiDma_Bd *firstBd = bd;
-  for (int i = 0; i < BD_COUNT; i++) {
-    XAxiDma_BdSetBufAddr(bd, (UINTPTR)&txBuffers[i]);
-    bd = (XAxiDma_Bd *)XAxiDma_BdRingNext(txRing, bd);
-  }
-  XAxiDma_BdRingUnAlloc(txRing, BD_COUNT, firstBd);
+  /*
+    // tx
+    XAxiDma_BdRingAlloc(txRing, BD_COUNT, &bd);
+    XAxiDma_Bd *firstBd = bd;
+    for (int i = 0; i < BD_COUNT; i++) {
+      XAxiDma_BdSetBufAddr(bd, (UINTPTR)&txBuffers[i]);
+      bd = (XAxiDma_Bd *)XAxiDma_BdRingNext(txRing, bd);
+    }
+    XAxiDma_BdRingUnAlloc(txRing, BD_COUNT, firstBd);
+    */
 
-  XAxiDma_BdRingStart(rxRing);
+  *DMA_S2MM_CURDESC = ((uint32_t)&rxBdSpace[0]) - PHYSICAL_MEMORY_OFFSET;
+  *DMA_S2MM_CURDESC_HI = 0;
+
+  *DMA_S2MM_DMACR = 1 << 0;
+
+  *DMA_S2MM_TAILDESC =
+      ((uint32_t)&rxBdSpace[BD_COUNT - 1]) - PHYSICAL_MEMORY_OFFSET;
+  *DMA_S2MM_TAILDESC_HI = 0;
+
+  rxIndex = 0;
+
   XAxiDma_BdRingStart(txRing);
 
   memcpy(interface_addrs, if_addrs, sizeof(interface_addrs));
@@ -279,7 +358,8 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
   if (!inited) {
     return HAL_ERR_CALLED_BEFORE_INIT;
   }
-  if ((if_index_mask & ((1 << N_IFACE_ON_BOARD) - 1)) == 0 || (timeout < 0 && timeout != -1)) {
+  if ((if_index_mask & ((1 << N_IFACE_ON_BOARD) - 1)) == 0 ||
+      (timeout < 0 && timeout != -1)) {
     return HAL_ERR_INVALID_PARAMETER;
   }
   if (if_index_mask != ((1 << N_IFACE_ON_BOARD) - 1)) {
@@ -289,11 +369,17 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
   uint64_t begin = HAL_GetTicks();
   uint64_t current_time = 0;
   while ((current_time = HAL_GetTicks()) < begin + timeout || timeout == -1) {
-    if (XAxiDma_BdRingFromHw(rxRing, 1, &bd) == 1) {
+    volatile struct DMADesc *current =
+        (struct DMADesc *)((uint32_t)&rxBdSpace[rxIndex] +
+                           UNCACHED_MEMORY_OFFSET);
+    if (current->status) {
       // See AXI Ethernet Table 3-15
-      u32 length = XAxiDma_BdRead(bd, XAXIDMA_BD_USR4_OFFSET) & 0xFFFF;
-      u8 *data = (u8 *)XAxiDma_BdGetBufAddr(bd);
-      if (data && length >= IP_OFFSET && data[16] == 0x08 && data[17] == 0x00) {
+      u32 length = (uint16_t)current->status;
+      uint8_t *data = (uint8_t *)((uint32_t)&rxBufSpace[rxIndex][0] +
+                                  UNCACHED_MEMORY_OFFSET);
+      puts("\r\n");
+      if (data && length >= IP_OFFSET && data[12] == 0x81 && data[13] == 0x00 &&
+          data[16] == 0x08 && data[17] == 0x00) {
         // IPv4
         memcpy(dst_mac, data, sizeof(macaddr_t));
         memcpy(src_mac, &data[6], sizeof(macaddr_t));
@@ -306,8 +392,8 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
 
         PutBackBd(bd);
         return real_length;
-      } else if (data && length >= IP_OFFSET + ARP_LENGTH && data[16] == 0x08 &&
-                 data[17] == 0x06) {
+      } else if (data && length >= IP_OFFSET + ARP_LENGTH && data[12] == 0x81 &&
+                 data[13] == 0x00 && data[16] == 0x08 && data[17] == 0x06) {
         // ARP
         macaddr_t mac;
         memcpy(mac, &data[26], sizeof(macaddr_t));
