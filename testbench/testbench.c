@@ -73,6 +73,15 @@ __attribute((section(".text.init"))) void main() {
                                       (uint8_t *)packet, sizeof(packet),
                                       src_mac, dst_mac, -1, &if_index);
         xil_printf("res %d if_index %d\n", res, if_index);
+        xil_printf("from ");
+        for (int i = 0; i < 6;i++) {
+          puthex_u8(src_mac[i]);
+        }
+        xil_printf(" to ");
+        for (int i = 0; i < 6;i++) {
+          puthex_u8(dst_mac[i]);
+        }
+        xil_printf("\n");
         for (int i = 0; i < res; i++) {
           puthex_u8(((uint8_t *)packet)[i]);
         }

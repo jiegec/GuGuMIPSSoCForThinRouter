@@ -38,6 +38,13 @@ extern volatile uint32_t *DMA_S2MM_CURDESC_HI;
 extern volatile uint32_t *DMA_S2MM_TAILDESC;
 extern volatile uint32_t *DMA_S2MM_TAILDESC_HI;
 
+extern volatile uint32_t *DMA_MM2S_DMACR;
+extern volatile uint32_t *DMA_MM2S_DMASR;
+extern volatile uint32_t *DMA_MM2S_CURDESC;
+extern volatile uint32_t *DMA_MM2S_CURDESC_HI;
+extern volatile uint32_t *DMA_MM2S_TAILDESC;
+extern volatile uint32_t *DMA_MM2S_TAILDESC_HI;
+
 struct DMADesc {
   uint32_t nextDescLo;
   uint32_t nextDescHi;
@@ -51,6 +58,7 @@ struct DMADesc {
 };
 
 int rxIndex;
+int txIndex;
 volatile struct DMADesc rxBdSpace[BD_COUNT]
     __attribute__((aligned(sizeof(struct DMADesc))));
 uint8_t rxBufSpace[BD_COUNT][BUFFER_SIZE];
@@ -66,10 +74,6 @@ struct EthernetFrame {
   u16 etherType;
   u8 data[1500];
 };
-
-struct EthernetFrame rxBuffers[BD_COUNT] __attribute__((section(".physical")));
-struct EthernetFrame txBuffers[BD_COUNT] __attribute__((section(".physical")));
-u32 txBufferUsed = 0;
 
 #define ARP_TABLE_SIZE 16
 
@@ -117,29 +121,9 @@ void PutBackBd(XAxiDma_Bd *bd) {
   if (rxIndex == BD_COUNT) {
     rxIndex = 0;
   }
-  /*
-  u32 addr = XAxiDma_BdGetBufAddr(bd);
-  u32 len = XAxiDma_BdGetLength(bd, rxRing->MaxTransferLen);
-  XAxiDma_BdRingFree(rxRing, 1, bd);
-
-  XAxiDma_BdRingAlloc(rxRing, 1, &bd);
-  XAxiDma_BdSetBufAddr(bd, addr);
-  XAxiDma_BdSetLength(bd, len, rxRing->MaxTransferLen);
-  XAxiDma_BdRingToHw(rxRing, 1, bd);
-  */
 }
 
-void WaitTxBdAvailable() {
-  XAxiDma_Bd *bd;
-  while (txBufferUsed == BD_COUNT) {
-    u32 count = XAxiDma_BdRingFromHw(txRing, BD_COUNT, &bd);
-    if (count > 0) {
-      XAxiDma_BdRingFree(txRing, count, bd);
-      txBufferUsed -= count;
-      break;
-    }
-  }
-}
+void WaitTxBdAvailable() {}
 
 int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
   XAxiDma_Bd *bd;
@@ -232,17 +216,6 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
     current->padding[2] = 0;
   }
 
-  /*
-    // tx
-    XAxiDma_BdRingAlloc(txRing, BD_COUNT, &bd);
-    XAxiDma_Bd *firstBd = bd;
-    for (int i = 0; i < BD_COUNT; i++) {
-      XAxiDma_BdSetBufAddr(bd, (UINTPTR)&txBuffers[i]);
-      bd = (XAxiDma_Bd *)XAxiDma_BdRingNext(txRing, bd);
-    }
-    XAxiDma_BdRingUnAlloc(txRing, BD_COUNT, firstBd);
-    */
-
   *DMA_S2MM_CURDESC = ((uint32_t)&rxBdSpace[0]) - PHYSICAL_MEMORY_OFFSET;
   *DMA_S2MM_CURDESC_HI = 0;
 
@@ -251,10 +224,40 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
   *DMA_S2MM_TAILDESC =
       ((uint32_t)&rxBdSpace[BD_COUNT - 1]) - PHYSICAL_MEMORY_OFFSET;
   *DMA_S2MM_TAILDESC_HI = 0;
-
   rxIndex = 0;
 
-  XAxiDma_BdRingStart(txRing);
+  for (int i = 0; i < BD_COUNT; i++) {
+    volatile struct DMADesc *current =
+        (struct DMADesc *)((uint32_t)&txBdSpace[i] + UNCACHED_MEMORY_OFFSET);
+    if (i != BD_COUNT - 1) {
+      current->nextDescLo =
+          ((uint32_t)&txBdSpace[i + 1]) - PHYSICAL_MEMORY_OFFSET;
+      current->nextDescHi = 0;
+    } else {
+      current->nextDescLo = ((uint32_t)&txBdSpace[0]) - PHYSICAL_MEMORY_OFFSET;
+      current->nextDescHi = 0;
+    }
+    current->bufferAddrLo = ((uint32_t)&txBufSpace[i]) - PHYSICAL_MEMORY_OFFSET;
+    current->bufferAddrHi = 0;
+    current->reserved[0] = current->reserved[1] = 0;
+    current->control = BUFFER_SIZE;
+    current->status = 0;
+    current->application[0] = 0;
+    current->application[1] = 0;
+    current->application[2] = 0;
+    current->application[3] = 0;
+    current->application[4] = 0;
+    current->padding[0] = 0;
+    current->padding[1] = 0;
+    current->padding[2] = 0;
+  }
+
+  *DMA_MM2S_CURDESC = ((uint32_t)&txBdSpace[0]) - PHYSICAL_MEMORY_OFFSET;
+  *DMA_MM2S_CURDESC_HI = 0;
+
+  *DMA_MM2S_DMACR = 1 << 0;
+
+  txIndex = 0;
 
   memcpy(interface_addrs, if_addrs, sizeof(interface_addrs));
   memset(arpTable, 0, sizeof(arpTable));
@@ -291,7 +294,7 @@ int HAL_ArpGetMacAddress(int if_index, in_addr_t ip, macaddr_t o_mac) {
   XAxiDma_Bd *bd;
   WaitTxBdAvailable();
   XAxiDma_BdRingAlloc(txRing, 1, &bd);
-  txBufferUsed++;
+  // txBufferUsed++;
 
   UINTPTR addr = XAxiDma_BdGetBufAddr(bd);
   XAxiDma_BdClear(bd);
@@ -377,7 +380,6 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
       u32 length = (uint16_t)current->status;
       uint8_t *data = (uint8_t *)((uint32_t)&rxBufSpace[rxIndex][0] +
                                   UNCACHED_MEMORY_OFFSET);
-      puts("\r\n");
       if (data && length >= IP_OFFSET && data[12] == 0x81 && data[13] == 0x00 &&
           data[16] == 0x08 && data[17] == 0x00) {
         // IPv4
@@ -418,31 +420,33 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
           arpTable[0].if_index = vlan;
           memcpy(arpTable[0].mac, mac, sizeof(macaddr_t));
           arpTable[0].ip = ip;
-          if (debugEnabled) {
-            xil_printf("HAL_ReceiveIPPacket: learned ARP from %d.%d.%d.%d\r\n",
-                       ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF,
-                       ip >> 24);
-          }
+        }
+        if (debugEnabled) {
+          xil_printf("HAL_ReceiveIPPacket: learned ARP from %d.%d.%d.%d vlan %d\r\n",
+                     ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24, vlan);
         }
 
         in_addr_t dst_ip;
         memcpy(&dst_ip, &data[42], sizeof(in_addr_t));
-        if (vlan < N_IFACE_ON_BOARD && dst_ip == interface_addrs[vlan]) {
+        if (vlan < N_IFACE_ON_BOARD && htonl(dst_ip) == interface_addrs[vlan]) {
           // reply
-          XAxiDma_Bd *bd;
-          WaitTxBdAvailable();
-          XAxiDma_BdRingAlloc(txRing, 1, &bd);
-          txBufferUsed++;
+          if (debugEnabled) {
+            xil_printf("HAL_ReceiveIPPacket: reply ARP to %d.%d.%d.%d\r\n",
+                       ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF,
+                       ip >> 24);
+          }
+          volatile struct DMADesc *current =
+              (struct DMADesc *)((uint32_t)&txBdSpace[txIndex] +
+                                 UNCACHED_MEMORY_OFFSET);
+          memset(current, 0, sizeof(struct DMADesc));
+          current->bufferAddrLo =
+              (uint32_t)&txBufSpace[txIndex] - PHYSICAL_MEMORY_OFFSET;
+          current->control = (uint16_t)(IP_OFFSET + ARP_LENGTH);
+          current->control = current->control | XAXIDMA_BD_CTRL_TXSOF_MASK |
+                             XAXIDMA_BD_CTRL_TXEOF_MASK;
 
-          UINTPTR addr = XAxiDma_BdGetBufAddr(bd);
-          XAxiDma_BdClear(bd);
-          XAxiDma_BdSetBufAddr(bd, addr);
-          XAxiDma_BdSetLength(bd, IP_OFFSET + ARP_LENGTH,
-                              txRing->MaxTransferLen);
-          XAxiDma_BdSetCtrl(bd, XAXIDMA_BD_CTRL_TXSOF_MASK |
-                                    XAXIDMA_BD_CTRL_TXEOF_MASK);
-
-          u8 *buffer = (u8 *)addr;
+          u8 *buffer =
+              (u8 *)((uint32_t)&txBufSpace[txIndex] + UNCACHED_MEMORY_OFFSET);
           memcpy(buffer, &data[6], sizeof(macaddr_t));
           memcpy(&buffer[6], interface_mac, sizeof(macaddr_t));
           // VLAN
@@ -474,7 +478,10 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
           memcpy(&buffer[36], &data[26], sizeof(macaddr_t));
           memcpy(&buffer[42], &data[32], sizeof(in_addr_t));
 
-          XAxiDma_BdRingToHw(txRing, 1, bd);
+          // XAxiDma_BdRingToHw(txRing, 1, bd);
+          *DMA_MM2S_TAILDESC =
+              ((uint32_t)&txBdSpace[txIndex]) - PHYSICAL_MEMORY_OFFSET;
+          txIndex++;
 
           if (debugEnabled) {
             xil_printf("HAL_ReceiveIPPacket: replied ARP to %d.%d.%d.%d\r\n",
@@ -484,7 +491,7 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
         }
       } else {
         if (debugEnabled) {
-          xil_printf("HAL_ReceiveIPPacket: ignore recognized packet\r\n");
+          xil_printf("HAL_ReceiveIPPacket: ignore unrecognized packet\r\n");
         }
       }
       PutBackBd(bd);
@@ -504,7 +511,7 @@ int HAL_SendIPPacket(int if_index, uint8_t *buffer, size_t length,
   XAxiDma_Bd *bd;
   WaitTxBdAvailable();
   XAxiDma_BdRingAlloc(txRing, 1, &bd);
-  txBufferUsed++;
+  // txBufferUsed++;
 
   UINTPTR addr = XAxiDma_BdGetBufAddr(bd);
   XAxiDma_BdClear(bd);

@@ -15,3 +15,12 @@ void spi_write_register(uint8_t addr, uint8_t data);
 uint8_t spi_read_register(uint8_t addr);
 
 void eth_poll_packet(uint32_t *buffer);
+
+static uint32_t htonl(uint32_t arg) {
+  uint32_t ans = 0;
+  ans |= (arg & 0xFF) << 24;
+  ans |= (arg & 0xFF00) << 8;
+  ans |= (arg & 0xFF0000) >> 8;
+  ans |= (arg & 0xFF000000) >> 24;
+  return ans;
+}

@@ -24,6 +24,13 @@ volatile uint32_t *DMA_S2MM_CURDESC_HI = (uint32_t *)0xBFF0003C;
 volatile uint32_t *DMA_S2MM_TAILDESC = (uint32_t *)0xBFF00040;
 volatile uint32_t *DMA_S2MM_TAILDESC_HI = (uint32_t *)0xBFF00044;
 
+volatile uint32_t *DMA_MM2S_DMACR = (uint32_t *)0xBFF00000;
+volatile uint32_t *DMA_MM2S_DMASR = (uint32_t *)0xBFF00004;
+volatile uint32_t *DMA_MM2S_CURDESC = (uint32_t *)0xBFF00008;
+volatile uint32_t *DMA_MM2S_CURDESC_HI = (uint32_t *)0xBFF0000C;
+volatile uint32_t *DMA_MM2S_TAILDESC = (uint32_t *)0xBFF00010;
+volatile uint32_t *DMA_MM2S_TAILDESC_HI = (uint32_t *)0xBFF00014;
+
 #define BD_COUNT 16
 #define BUFFER_SIZE 2048
 #define PHYSICAL_MEMORY_OFFSET 0x80000000
