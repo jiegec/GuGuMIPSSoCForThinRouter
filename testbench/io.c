@@ -281,31 +281,4 @@ void eth_poll_packet(uint32_t *buffer) {
       }
     }
   }
-  /*
-  // reset
-  *FIFO_RDFR = 0xA5;
-  while (1) {
-    if ((*FIFO_ISR & (1 << 30)) == 1) {
-      // clear
-      *FIFO_ISR = *FIFO_ISR;
-      // reset
-      *FIFO_RDFR = 0xA5;
-      puts("FIFO overrun\r\n");
-    }
-    if (*FIFO_RDFO) {
-      uint32_t real_len = *FIFO_RLR;
-      uint32_t len = real_len / 4;
-      puts("Got packet of length ");
-      putdec(real_len);
-      puts("\r\n");
-      puts("Data: ");
-      for (uint32_t i = 0; i < len; i++) {
-        uint32_t data = *FIFO_RDFD;
-        buffer[i] = data;
-        puthex_be(data);
-      }
-      puts("\r\n");
-    }
-  }
-  */
 }

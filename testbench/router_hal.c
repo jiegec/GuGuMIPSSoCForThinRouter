@@ -123,7 +123,13 @@ void PutBackBd(XAxiDma_Bd *bd) {
   }
 }
 
-void WaitTxBdAvailable() {}
+void WaitTxBdAvailable() {
+  volatile struct DMADesc *current =
+      (struct DMADesc *)((uint32_t)&txBdSpace[txIndex] +
+                         UNCACHED_MEMORY_OFFSET);
+  while (current->control != 0 && current->status == 0)
+    ;
+}
 
 int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
   XAxiDma_Bd *bd;
@@ -240,7 +246,7 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
     current->bufferAddrLo = ((uint32_t)&txBufSpace[i]) - PHYSICAL_MEMORY_OFFSET;
     current->bufferAddrHi = 0;
     current->reserved[0] = current->reserved[1] = 0;
-    current->control = BUFFER_SIZE;
+    current->control = 0;
     current->status = 0;
     current->application[0] = 0;
     current->application[1] = 0;
@@ -436,6 +442,7 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
                        ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF,
                        ip >> 24);
           }
+          WaitTxBdAvailable();
           volatile struct DMADesc *current =
               (struct DMADesc *)((uint32_t)&txBdSpace[txIndex] +
                                  UNCACHED_MEMORY_OFFSET);
@@ -480,7 +487,6 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
           memcpy(&buffer[36], &data[26], sizeof(macaddr_t));
           memcpy(&buffer[42], &data[32], sizeof(in_addr_t));
 
-          // XAxiDma_BdRingToHw(txRing, 1, bd);
           *DMA_MM2S_TAILDESC =
               ((uint32_t)&txBdSpace[txIndex]) - PHYSICAL_MEMORY_OFFSET;
           txIndex++;
@@ -513,15 +519,19 @@ int HAL_SendIPPacket(int if_index, uint8_t *buffer, size_t length,
   if (if_index >= N_IFACE_ON_BOARD || if_index < 0) {
     return HAL_ERR_INVALID_PARAMETER;
   }
-  XAxiDma_Bd *bd;
   WaitTxBdAvailable();
-  XAxiDma_BdRingAlloc(txRing, 1, &bd);
-  // txBufferUsed++;
+  volatile struct DMADesc *current =
+      (struct DMADesc *)((uint32_t)&txBdSpace[txIndex] +
+                         UNCACHED_MEMORY_OFFSET);
+  // skip nextDesc fields
+  memset(((uint8_t *)current + 8), 0, sizeof(struct DMADesc) - 8);
+  current->bufferAddrLo =
+      (uint32_t)&txBufSpace[txIndex] - PHYSICAL_MEMORY_OFFSET;
+  current->control = (uint16_t)(length + IP_OFFSET);
+  current->control = current->control | XAXIDMA_BD_CTRL_TXSOF_MASK |
+                     XAXIDMA_BD_CTRL_TXEOF_MASK;
 
-  UINTPTR addr = XAxiDma_BdGetBufAddr(bd);
-  XAxiDma_BdClear(bd);
-  XAxiDma_BdSetBufAddr(bd, addr);
-  u8 *data = (u8 *)addr;
+  u8 *data = (u8 *)((uint32_t)&txBufSpace[txIndex] + UNCACHED_MEMORY_OFFSET);
   memcpy(data, dst_mac, sizeof(macaddr_t));
   memcpy(&data[6], interface_mac, sizeof(macaddr_t));
   // VLAN
@@ -534,9 +544,11 @@ int HAL_SendIPPacket(int if_index, uint8_t *buffer, size_t length,
   data[16] = 0x08;
   data[17] = 0x00;
   memcpy(&data[IP_OFFSET], buffer, length);
-  XAxiDma_BdSetLength(bd, length + IP_OFFSET, txRing->MaxTransferLen);
-  XAxiDma_BdSetCtrl(bd,
-                    XAXIDMA_BD_CTRL_TXSOF_MASK | XAXIDMA_BD_CTRL_TXEOF_MASK);
-  XAxiDma_BdRingToHw(txRing, 1, bd);
+
+  *DMA_MM2S_TAILDESC = ((uint32_t)&txBdSpace[txIndex]) - PHYSICAL_MEMORY_OFFSET;
+  txIndex++;
+  if (txIndex == BD_COUNT) {
+    txIndex = 0;
+  }
   return 0;
 }
