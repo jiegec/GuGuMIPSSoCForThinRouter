@@ -72,8 +72,8 @@ XAxiDma_Bd *XAxiDma_BdRingNext(XAxiDma_BdRing *ring, XAxiDma_Bd *bd) {}
 void XAxiDma_BdRingStart(XAxiDma_BdRing *bd) {}
 void XAxiDma_BdClear(XAxiDma_Bd* bd) {}
 void XAxiDma_BdSetCtrl(XAxiDma_Bd* bd, uint32_t flags) {}
+#define XAXIDMA_BD_CTRL_TXEOF_MASK  (1 << 26)
 #define XAXIDMA_BD_CTRL_TXSOF_MASK  (1 << 27)
-#define XAXIDMA_BD_CTRL_TXEOF_MASK  (1 << 28)
 #define XAXIDMA_BD_USR4_OFFSET 0
 u32 XAxiDma_BdRead(XAxiDma_Bd *bd, uint32_t offset) {
 

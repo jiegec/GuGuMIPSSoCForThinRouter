@@ -422,8 +422,9 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
           arpTable[0].ip = ip;
         }
         if (debugEnabled) {
-          xil_printf("HAL_ReceiveIPPacket: learned ARP from %d.%d.%d.%d vlan %d\r\n",
-                     ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24, vlan);
+          xil_printf(
+              "HAL_ReceiveIPPacket: learned ARP from %d.%d.%d.%d vlan %d\r\n",
+              ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24, vlan);
         }
 
         in_addr_t dst_ip;
@@ -438,7 +439,8 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
           volatile struct DMADesc *current =
               (struct DMADesc *)((uint32_t)&txBdSpace[txIndex] +
                                  UNCACHED_MEMORY_OFFSET);
-          memset(current, 0, sizeof(struct DMADesc));
+          // skip nextDesc fields
+          memset(((uint8_t *)current + 8), 0, sizeof(struct DMADesc) - 8);
           current->bufferAddrLo =
               (uint32_t)&txBufSpace[txIndex] - PHYSICAL_MEMORY_OFFSET;
           current->control = (uint16_t)(IP_OFFSET + ARP_LENGTH);
@@ -482,6 +484,9 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
           *DMA_MM2S_TAILDESC =
               ((uint32_t)&txBdSpace[txIndex]) - PHYSICAL_MEMORY_OFFSET;
           txIndex++;
+          if (txIndex == BD_COUNT) {
+            txIndex = 0;
+          }
 
           if (debugEnabled) {
             xil_printf("HAL_ReceiveIPPacket: replied ARP to %d.%d.%d.%d\r\n",
