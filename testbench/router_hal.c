@@ -163,6 +163,11 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
   SpiWriteRegister(52, 3);
   SpiWriteRegister(68, 4);
   SpiWriteRegister(84, 5);
+  // P1-P4 membership
+  SpiWriteRegister(17, (1 << 4) | (1 << 0));
+  SpiWriteRegister(33, (1 << 4) | (1 << 1));
+  SpiWriteRegister(49, (1 << 4) | (1 << 2));
+  SpiWriteRegister(65, (1 << 4) | (1 << 3));
 
   if (debugEnabled) {
     xil_printf("HAL_Init: Init rings @ %x\r\n", rxBdSpace);
@@ -330,7 +335,8 @@ int HAL_ArpGetMacAddress(int if_index, in_addr_t ip, macaddr_t o_mac) {
   buffer[25] = 0x01;
   // sender
   memcpy(&buffer[26], interface_mac, sizeof(macaddr_t));
-  memcpy(&buffer[32], &interface_addrs[if_index], sizeof(in_addr_t));
+  in_addr_t sender_ip = htonl(interface_addrs[if_index]);
+  memcpy(&buffer[32], &sender_ip, sizeof(in_addr_t));
   // target
   memset(&buffer[36], 0, sizeof(macaddr_t));
   memcpy(&buffer[42], &ip, sizeof(in_addr_t));
@@ -380,10 +386,6 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
       u32 length = (uint16_t)current->status;
       uint8_t *data = (uint8_t *)((uint32_t)&rxBufSpace[rxIndex][0] +
                                   UNCACHED_MEMORY_OFFSET);
-      for (int i = 0; i < length; i++) {
-        puthex_u8(data[i]);
-      }
-      xil_printf("\n");
       if (data && length >= IP_OFFSET && data[12] == 0x81 && data[13] == 0x00 &&
           data[16] == 0x08 && data[17] == 0x00) {
         // IPv4

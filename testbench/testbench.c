@@ -102,6 +102,9 @@ __attribute((section(".text.init"))) void main() {
                                  0x0200000a + ((1 - if_index) << 16),
                                  dst_mac) == 0) {
           HAL_SendIPPacket(1 - if_index, (uint8_t *)packet, res, dst_mac);
+        } else {
+          xil_printf("ARP not found for IP %x at port %d\n",
+                     0x0200000a + ((1 - if_index) << 16), 1 - if_index);
         }
       }
     } else {

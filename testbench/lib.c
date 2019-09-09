@@ -22,7 +22,7 @@ void memmove(void *to, void *from, uint32_t count) {
   } else if (to_addr > from_addr) {
     char *t = to;
     char *f = from;
-    for (int i = count - 1; i > 0; i--) {
+    for (int i = count - 1; i >= 0; i--) {
         t[i] = f[i];
     }
   }
