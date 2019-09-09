@@ -286,19 +286,20 @@ int HAL_ArpGetMacAddress(int if_index, in_addr_t ip, macaddr_t o_mac) {
         "HAL_ArpGetMacAddress: asking for ip address with arp request\r\n");
   }
   // request
-  XAxiDma_Bd *bd;
   WaitTxBdAvailable();
-  XAxiDma_BdRingAlloc(txRing, 1, &bd);
-  // txBufferUsed++;
+  volatile struct DMADesc *current =
+      (struct DMADesc *)((uint32_t)&txBdSpace[txIndex] +
+                         UNCACHED_MEMORY_OFFSET);
+  // skip nextDesc fields
+  memset(((uint8_t *)current + 8), 0, sizeof(struct DMADesc) - 8);
+  current->bufferAddrLo =
+      (uint32_t)&txBufSpace[txIndex] - PHYSICAL_MEMORY_OFFSET;
+  current->control = (uint16_t)(ARP_LENGTH + IP_OFFSET);
+  current->control = current->control | XAXIDMA_BD_CTRL_TXSOF_MASK |
+                     XAXIDMA_BD_CTRL_TXEOF_MASK;
 
-  UINTPTR addr = XAxiDma_BdGetBufAddr(bd);
-  XAxiDma_BdClear(bd);
-  XAxiDma_BdSetBufAddr(bd, addr);
-  XAxiDma_BdSetLength(bd, IP_OFFSET + ARP_LENGTH, txRing->MaxTransferLen);
-  XAxiDma_BdSetCtrl(bd,
-                    XAXIDMA_BD_CTRL_TXSOF_MASK | XAXIDMA_BD_CTRL_TXEOF_MASK);
+  u8 *buffer = (u8 *)((uint32_t)&txBufSpace[txIndex] + UNCACHED_MEMORY_OFFSET);
 
-  u8 *buffer = (u8 *)addr;
   // dst mac
   for (int i = 0; i < 6; i++) {
     buffer[i] = 0xff;
@@ -334,7 +335,11 @@ int HAL_ArpGetMacAddress(int if_index, in_addr_t ip, macaddr_t o_mac) {
   memset(&buffer[36], 0, sizeof(macaddr_t));
   memcpy(&buffer[42], &ip, sizeof(in_addr_t));
 
-  XAxiDma_BdRingToHw(txRing, 1, bd);
+  *DMA_MM2S_TAILDESC = ((uint32_t)&txBdSpace[txIndex]) - PHYSICAL_MEMORY_OFFSET;
+  txIndex++;
+  if (txIndex == BD_COUNT) {
+    txIndex = 0;
+  }
   return HAL_ERR_IP_NOT_EXIST;
 }
 

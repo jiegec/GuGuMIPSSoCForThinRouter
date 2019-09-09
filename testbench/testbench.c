@@ -40,23 +40,14 @@ __attribute((section(".text.init"))) void main() {
       puthex(spi_control());
       puts("\r\n");
     } else if (strequ(buffer, "setup")) {
+      puts("IP: ");
+      gets(buffer);
+      int ip = buffer[0] - '0';
+      for (uint32_t i = 0; i < 4; i++) {
+        if_addrs[i] = (i << 8) + 0x0a000000 + ip;
+        xil_printf("IP %d: 10.0.%d.%d\n", i, i, ip);
+      }
       HAL_Init(1, if_addrs);
-      /*
-          spi_enable();
-          // P1-P4 Tag Removal
-          spi_write_register(16, 2);
-          spi_write_register(32, 2);
-          spi_write_register(48, 2);
-          spi_write_register(64, 2);
-          // P5 Tag Removal
-          spi_write_register(80, 4);
-          // P1-P5 PVID
-          spi_write_register(20, 1);
-          spi_write_register(36, 2);
-          spi_write_register(52, 3);
-          spi_write_register(68, 4);
-          spi_write_register(84, 5);
-          */
 
       // confirms that register written is correct
       if (spi_read_register(84) != 5) {
@@ -64,7 +55,7 @@ __attribute((section(".text.init"))) void main() {
       }
     } else if (strequ(buffer, "poll")) {
       eth_poll_packet(packet);
-    } else if (strequ(buffer, "hal_poll")) {
+    } else if (strequ(buffer, "echo")) {
       while (1) {
         macaddr_t src_mac;
         macaddr_t dst_mac;
@@ -74,11 +65,11 @@ __attribute((section(".text.init"))) void main() {
                                       src_mac, dst_mac, -1, &if_index);
         xil_printf("res %d if_index %d\n", res, if_index);
         xil_printf("from ");
-        for (int i = 0; i < 6;i++) {
+        for (int i = 0; i < 6; i++) {
           puthex_u8(src_mac[i]);
         }
         xil_printf(" to ");
-        for (int i = 0; i < 6;i++) {
+        for (int i = 0; i < 6; i++) {
           puthex_u8(dst_mac[i]);
         }
         xil_printf("\n");
@@ -87,6 +78,31 @@ __attribute((section(".text.init"))) void main() {
         }
         xil_printf("\n");
         HAL_SendIPPacket(if_index, (uint8_t *)packet, res, src_mac);
+      }
+    } else if (strequ(buffer, "forward")) {
+      while (1) {
+        macaddr_t src_mac;
+        macaddr_t dst_mac;
+        int if_index;
+        int res = HAL_ReceiveIPPacket((1 << N_IFACE_ON_BOARD) - 1,
+                                      (uint8_t *)packet, sizeof(packet),
+                                      src_mac, dst_mac, -1, &if_index);
+        xil_printf("res %d if_index %d\n", res, if_index);
+        xil_printf("from ");
+        for (int i = 0; i < 6; i++) {
+          puthex_u8(src_mac[i]);
+        }
+        xil_printf(" to ");
+        for (int i = 0; i < 6; i++) {
+          puthex_u8(dst_mac[i]);
+        }
+        xil_printf("\n");
+        // static forwarding
+        if (HAL_ArpGetMacAddress(1 - if_index,
+                                 0x0200000a + ((1 - if_index) << 16),
+                                 dst_mac) == 0) {
+          HAL_SendIPPacket(1 - if_index, (uint8_t *)packet, res, dst_mac);
+        }
       }
     } else {
       puts("Nothing to do\r\n");
