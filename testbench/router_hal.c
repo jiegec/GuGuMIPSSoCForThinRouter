@@ -23,7 +23,7 @@ XTmrCtr tmrCtr;
 XAxiDma_BdRing *rxRing;
 XAxiDma_BdRing *txRing;
 
-#define BD_COUNT 16
+#define BD_COUNT 128
 #define BUFFER_SIZE 2048
 #define PHYSICAL_MEMORY_OFFSET 0x80000000
 #define UNCACHED_MEMORY_OFFSET 0x20000000
@@ -380,6 +380,10 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
       u32 length = (uint16_t)current->status;
       uint8_t *data = (uint8_t *)((uint32_t)&rxBufSpace[rxIndex][0] +
                                   UNCACHED_MEMORY_OFFSET);
+      for (int i = 0; i < length; i++) {
+        puthex_u8(data[i]);
+      }
+      xil_printf("\n");
       if (data && length >= IP_OFFSET && data[12] == 0x81 && data[13] == 0x00 &&
           data[16] == 0x08 && data[17] == 0x00) {
         // IPv4
