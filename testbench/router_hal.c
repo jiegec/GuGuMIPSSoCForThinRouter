@@ -1,7 +1,6 @@
 #include "router_hal.h"
 #include "io.h"
 #include "xaxidma.h"
-#include "xaxiethernet.h"
 #include "xil_printf.h"
 #include "xspi.h"
 #include "xtmrctr.h"
@@ -14,11 +13,9 @@ int debugEnabled = 0;
 in_addr_t interface_addrs[N_IFACE_ON_BOARD] = {0};
 macaddr_t interface_mac = {2, 3, 3, 3, 3, 3};
 
-XAxiEthernet_Config *axiEthernetConfig;
 XAxiDma_Config *axiDmaConfig;
 XSpi_Config *spiConfig;
 
-XAxiEthernet axiEthernet;
 XAxiDma axiDma;
 XSpi spi;
 XTmrCtr tmrCtr;
@@ -138,13 +135,10 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
   }
   debugEnabled = debug;
 
-  axiEthernetConfig = XAxiEthernet_LookupConfig(XPAR_AXI_ETHERNET_0_DEVICE_ID);
   axiDmaConfig = XAxiDma_LookupConfig(XPAR_AXIDMA_0_DEVICE_ID);
   spiConfig = XSpi_LookupConfig(XPAR_AXI_QUAD_SPI_0_DEVICE_ID);
 
   XAxiDma_CfgInitialize(&axiDma, axiDmaConfig);
-  XAxiEthernet_CfgInitialize(&axiEthernet, axiEthernetConfig,
-                             axiEthernetConfig->BaseAddress);
   XSpi_CfgInitialize(&spi, spiConfig, spiConfig->BaseAddress);
   XTmrCtr_Initialize(&tmrCtr, XPAR_AXI_TIMER_0_DEVICE_ID);
 
@@ -186,11 +180,6 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
   if (debugEnabled) {
     xil_printf("HAL_Init: Enable Ethernet MAC\r\n");
   }
-  XAxiEthernet_SetOptions(&axiEthernet, XAE_RECEIVER_ENABLE_OPTION |
-                                            XAE_TRANSMITTER_ENABLE_OPTION |
-                                            XAE_VLAN_OPTION);
-  XAxiEthernet_SetMacAddress(&axiEthernet, interface_mac);
-  XAxiEthernet_Start(&axiEthernet);
 
   if (debugEnabled) {
     xil_printf("HAL_Init: Add buffer to rings\r\n");
