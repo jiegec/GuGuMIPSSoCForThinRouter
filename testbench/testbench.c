@@ -50,9 +50,9 @@ __attribute((section(".text.init"))) void main() {
       HAL_Init(1, if_addrs);
 
       // confirms that register written is correct
-      if (spi_read_register(84) != 5) {
-        puts("Warning: SPI might not working properly");
-      }
+      //if (spi_read_register(84) != 5) {
+        //puts("Warning: SPI might not working properly");
+      //}
     } else if (strequ(buffer, "poll")) {
       eth_poll_packet(packet);
     } else if (strequ(buffer, "echo")) {

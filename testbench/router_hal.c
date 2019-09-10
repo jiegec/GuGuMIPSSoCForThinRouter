@@ -150,6 +150,7 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
   XSpi_SetOptions(&spi, XSP_MASTER_OPTION | XSP_MANUAL_SSELECT_OPTION);
   XSpi_Start(&spi);
   XSpi_IntrGlobalDisable(&spi);
+  /*
   // P1-P4 Tag Removal
   SpiWriteRegister(16, 2);
   SpiWriteRegister(32, 2);
@@ -168,6 +169,7 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
   SpiWriteRegister(33, (1 << 4) | (1 << 1));
   SpiWriteRegister(49, (1 << 4) | (1 << 2));
   SpiWriteRegister(65, (1 << 4) | (1 << 3));
+  */
 
   if (debugEnabled) {
     xil_printf("HAL_Init: Init rings @ %x\r\n", rxBdSpace);
@@ -267,8 +269,9 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
 }
 
 uint64_t HAL_GetTicks() {
-  // TODO
-  return XTmrCtr_GetValue(&tmrCtr, 0) * 1000 / XPAR_AXI_TIMER_0_CLOCK_FREQ_HZ;
+  uint32_t cp0_count;
+  asm volatile("mfc0 %0, $9, 0;" : "=r"(cp0_count));
+  return cp0_count;
 }
 
 int HAL_ArpGetMacAddress(int if_index, in_addr_t ip, macaddr_t o_mac) {
@@ -502,7 +505,7 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
         }
       } else {
         if (debugEnabled) {
-          xil_printf("HAL_ReceiveIPPacket: ignore unrecognized packet\r\n");
+          xil_printf("HAL_ReceiveIPPacket: ignore unrecognized packet at time %d\r\n", (uint32_t)HAL_GetTicks());
         }
       }
       PutBackBd(bd);

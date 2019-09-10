@@ -55,10 +55,10 @@ module top(
     output eth_rgmii_txc,
     output eth_rst_n,
 
-    inout eth_spi_io0_io, // MOSI
-    inout eth_spi_io1_io, // MISO
-    inout eth_spi_sck_io,
-    inout eth_spi_ss_io,
+    output eth_spi_mosi, // MOSI
+    input eth_spi_miso, // MISO
+    output eth_spi_sck,
+    output eth_spi_ss_n,
 
     input uart_rxd,
     output uart_txd,
@@ -112,10 +112,10 @@ module top(
         .eth_rgmii_txc(eth_rgmii_txc),
         .eth_rst_n(eth_rst_n),
 
-        .eth_spi_io0_io(eth_spi_io0_io),
-        .eth_spi_io1_io(eth_spi_io1_io),
-        .eth_spi_sck_io(eth_spi_sck_io),
-        .eth_spi_ss_io(eth_spi_ss_io),
+        .eth_spi_mosi(eth_spi_mosi),
+        .eth_spi_miso(eth_spi_miso),
+        .eth_spi_sck(eth_spi_sck),
+        .eth_spi_ss_n(eth_spi_ss_n),
 
         .uart_rxd(uart_rxd),
         .uart_txd(uart_txd)

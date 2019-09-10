@@ -40,7 +40,7 @@ if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
 
 # The design that will be created by this Tcl script contains the following 
 # module references:
-# mycpu_top
+# eth_conf, mycpu_top
 
 # Please add the sources of those modules before sourcing this Tcl script.
 
@@ -164,7 +164,6 @@ proc create_root_design { parentCell } {
   # Create interface ports
   set base_ram [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:emc_rtl:1.0 base_ram ]
   set eth_rgmii [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:rgmii_rtl:1.0 eth_rgmii ]
-  set eth_spi [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:spi_rtl:1.0 eth_spi ]
   set ext_ram [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:emc_rtl:1.0 ext_ram ]
   set flash [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:emc_rtl:1.0 flash ]
   set uart [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:uart_rtl:1.0 uart ]
@@ -178,6 +177,10 @@ proc create_root_design { parentCell } {
   set_property -dict [ list \
    CONFIG.POLARITY {ACTIVE_LOW} \
  ] $eth_rst_n
+  set eth_spi_miso [ create_bd_port -dir I eth_spi_miso ]
+  set eth_spi_mosi [ create_bd_port -dir O eth_spi_mosi ]
+  set eth_spi_sck [ create_bd_port -dir O eth_spi_sck ]
+  set eth_spi_ss_n [ create_bd_port -dir O eth_spi_ss_n ]
   set reset [ create_bd_port -dir I -type rst reset ]
   set_property -dict [ list \
    CONFIG.POLARITY {ACTIVE_HIGH} \
@@ -354,6 +357,17 @@ proc create_root_design { parentCell } {
    CONFIG.NUM_OUT_CLKS {4} \
  ] $clk_wiz
 
+  # Create instance: eth_conf_0, and set properties
+  set block_name eth_conf
+  set block_cell_name eth_conf_0
+  if { [catch {set eth_conf_0 [create_bd_cell -type module -reference $block_name $block_cell_name] } errmsg] } {
+     catch {common::send_msg_id "BD_TCL-105" "ERROR" "Unable to add referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   } elseif { $eth_conf_0 eq "" } {
+     catch {common::send_msg_id "BD_TCL-106" "ERROR" "Unable to referenced block <$block_name>. Please add the files for ${block_name}'s definition into the project."}
+     return 1
+   }
+  
   # Create instance: jtag_axi_0, and set properties
   set jtag_axi_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:jtag_axi:1.2 jtag_axi_0 ]
 
@@ -436,7 +450,6 @@ proc create_root_design { parentCell } {
   connect_bd_intf_net -intf_net axi_mem_intercon_M06_AXI [get_bd_intf_pins axi_ethernet_0/s_axi] [get_bd_intf_pins axi_mem_intercon/M06_AXI]
   connect_bd_intf_net -intf_net axi_mem_intercon_M07_AXI [get_bd_intf_pins axi_ethernet_0_dma/S_AXI_LITE] [get_bd_intf_pins axi_mem_intercon/M07_AXI]
   connect_bd_intf_net -intf_net axi_mem_intercon_M08_AXI [get_bd_intf_pins axi_eth_spi/AXI_LITE] [get_bd_intf_pins axi_mem_intercon/M08_AXI]
-  connect_bd_intf_net -intf_net axi_quad_spi_SPI_0 [get_bd_intf_ports eth_spi] [get_bd_intf_pins axi_eth_spi/SPI_0]
   connect_bd_intf_net -intf_net axi_uartlite_0_UART [get_bd_intf_ports uart] [get_bd_intf_pins axi_uartlite_0/UART]
   connect_bd_intf_net -intf_net jtag_axi_0_M_AXI [get_bd_intf_pins axi_mem_intercon/S01_AXI] [get_bd_intf_pins jtag_axi_0/M_AXI]
   connect_bd_intf_net -intf_net mycpu_top_0_interface_aximm [get_bd_intf_pins axi_mem_intercon/S00_AXI] [get_bd_intf_pins mycpu_top_0/interface_aximm]
@@ -447,10 +460,10 @@ set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_intf_nets mycpu_top_0_interface_
   connect_bd_net -net axi_ethernet_0_dma_mm2s_cntrl_reset_out_n [get_bd_pins axi_ethernet_0/axi_txc_arstn] [get_bd_pins axi_ethernet_0_dma/mm2s_cntrl_reset_out_n]
   connect_bd_net -net axi_ethernet_0_dma_mm2s_prmry_reset_out_n [get_bd_pins axi_ethernet_0/axi_txd_arstn] [get_bd_pins axi_ethernet_0_dma/mm2s_prmry_reset_out_n]
   connect_bd_net -net axi_ethernet_0_fifo_s2mm_prmry_reset_out_n [get_bd_pins axi_ethernet_0/axi_rxd_arstn] [get_bd_pins axi_ethernet_0/axi_rxs_arstn] [get_bd_pins axi_ethernet_0_dma/s2mm_prmry_reset_out_n]
-  connect_bd_net -net axi_ethernet_0_phy_rst_n [get_bd_ports eth_rst_n] [get_bd_pins axi_ethernet_0/phy_rst_n]
+  connect_bd_net -net axi_ethernet_0_phy_rst_n [get_bd_ports eth_rst_n] [get_bd_pins axi_ethernet_0/phy_rst_n] [get_bd_pins eth_conf_0/rst_in_n]
   connect_bd_net -net clk_1 [get_bd_pins axi_bram_ctrl_0/s_axi_aclk] [get_bd_pins axi_bram_ctrl_1/s_axi_aclk] [get_bd_pins axi_eth_spi/s_axi_aclk] [get_bd_pins axi_ethernet_0/axis_clk] [get_bd_pins axi_ethernet_0/s_axi_lite_clk] [get_bd_pins axi_ethernet_0_dma/m_axi_mm2s_aclk] [get_bd_pins axi_ethernet_0_dma/m_axi_s2mm_aclk] [get_bd_pins axi_ethernet_0_dma/m_axi_sg_aclk] [get_bd_pins axi_ethernet_0_dma/s_axi_lite_aclk] [get_bd_pins axi_mem_intercon/ACLK] [get_bd_pins axi_mem_intercon/M00_ACLK] [get_bd_pins axi_mem_intercon/M01_ACLK] [get_bd_pins axi_mem_intercon/M02_ACLK] [get_bd_pins axi_mem_intercon/M06_ACLK] [get_bd_pins axi_mem_intercon/M07_ACLK] [get_bd_pins axi_mem_intercon/M08_ACLK] [get_bd_pins axi_mem_intercon/S00_ACLK] [get_bd_pins axi_mem_intercon/S01_ACLK] [get_bd_pins axi_mem_intercon/S02_ACLK] [get_bd_pins axi_mem_intercon/S03_ACLK] [get_bd_pins axi_mem_intercon/S04_ACLK] [get_bd_pins axi_uartlite_0/s_axi_aclk] [get_bd_pins clk_wiz/clk_out1] [get_bd_pins jtag_axi_0/aclk] [get_bd_pins mycpu_top_0/aclk] [get_bd_pins system_ila_0/clk]
   connect_bd_net -net clk_2 [get_bd_ports clk] [get_bd_pins clk_wiz/clk_in1]
-  connect_bd_net -net clk_wiz_clk_out2 [get_bd_pins axi_emc_base/rdclk] [get_bd_pins axi_emc_base/s_axi_aclk] [get_bd_pins axi_emc_ext/rdclk] [get_bd_pins axi_emc_ext/s_axi_aclk] [get_bd_pins axi_emc_flash/rdclk] [get_bd_pins axi_emc_flash/s_axi_aclk] [get_bd_pins axi_eth_spi/ext_spi_clk] [get_bd_pins axi_mem_intercon/M03_ACLK] [get_bd_pins axi_mem_intercon/M04_ACLK] [get_bd_pins axi_mem_intercon/M05_ACLK] [get_bd_pins clk_wiz/clk_out2] [get_bd_pins rst_clk_50M/slowest_sync_clk]
+  connect_bd_net -net clk_wiz_clk_out2 [get_bd_pins axi_emc_base/rdclk] [get_bd_pins axi_emc_base/s_axi_aclk] [get_bd_pins axi_emc_ext/rdclk] [get_bd_pins axi_emc_ext/s_axi_aclk] [get_bd_pins axi_emc_flash/rdclk] [get_bd_pins axi_emc_flash/s_axi_aclk] [get_bd_pins axi_eth_spi/ext_spi_clk] [get_bd_pins axi_mem_intercon/M03_ACLK] [get_bd_pins axi_mem_intercon/M04_ACLK] [get_bd_pins axi_mem_intercon/M05_ACLK] [get_bd_pins clk_wiz/clk_out2] [get_bd_pins eth_conf_0/clk] [get_bd_pins rst_clk_50M/slowest_sync_clk]
   connect_bd_net -net clk_wiz_clk_out3 [get_bd_pins axi_ethernet_0/ref_clk] [get_bd_pins clk_wiz/clk_out3]
   connect_bd_net -net clk_wiz_clk_out4 [get_bd_pins axi_ethernet_0/gtx_clk] [get_bd_pins clk_wiz/clk_out4]
   connect_bd_net -net clk_wiz_locked [get_bd_pins clk_wiz/locked] [get_bd_pins rst_clk_50M/dcm_locked]
@@ -468,6 +481,10 @@ set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_nets debug_wb_rf_data]
 set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_nets debug_wb_rf_wen]
   connect_bd_net -net debug_wb_rf_wnum [get_bd_pins mycpu_top_0/debug_wb_rf_wnum] [get_bd_pins system_ila_0/probe1]
 set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_nets debug_wb_rf_wnum]
+  connect_bd_net -net eth_conf_0_eth_spi_mosi [get_bd_ports eth_spi_mosi] [get_bd_pins eth_conf_0/eth_spi_mosi]
+  connect_bd_net -net eth_conf_0_eth_spi_sck [get_bd_ports eth_spi_sck] [get_bd_pins eth_conf_0/eth_spi_sck]
+  connect_bd_net -net eth_conf_0_eth_spi_ss_n [get_bd_ports eth_spi_ss_n] [get_bd_pins eth_conf_0/eth_spi_ss_n]
+  connect_bd_net -net eth_spi_miso_0_1 [get_bd_ports eth_spi_miso] [get_bd_pins eth_conf_0/eth_spi_miso]
   connect_bd_net -net reset_1 [get_bd_ports reset] [get_bd_pins rst_clk_50M/ext_reset_in]
   connect_bd_net -net rst_clk_50M_interconnect_aresetn [get_bd_pins axi_mem_intercon/ARESETN] [get_bd_pins rst_clk_50M/interconnect_aresetn]
   connect_bd_net -net rst_clk_50M_mb_reset [get_bd_pins rst_clk_50M/mb_reset] [get_bd_pins util_vector_logic_0/Op1]
