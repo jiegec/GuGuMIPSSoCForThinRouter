@@ -3,7 +3,6 @@
 #include "xaxidma.h"
 #include "xil_printf.h"
 #include "xspi.h"
-#include "xtmrctr.h"
 
 const int IP_OFFSET = 14 + 4;
 const int ARP_LENGTH = 28;
@@ -13,15 +12,7 @@ int debugEnabled = 0;
 in_addr_t interface_addrs[N_IFACE_ON_BOARD] = {0};
 macaddr_t interface_mac = {2, 3, 3, 3, 3, 3};
 
-XAxiDma_Config *axiDmaConfig;
-XSpi_Config *spiConfig;
-
-XAxiDma axiDma;
 XSpi spi;
-XTmrCtr tmrCtr;
-
-XAxiDma_BdRing *rxRing;
-XAxiDma_BdRing *txRing;
 
 #define BD_COUNT 128
 #define BUFFER_SIZE 2048
@@ -135,15 +126,6 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
   }
   debugEnabled = debug;
 
-  axiDmaConfig = XAxiDma_LookupConfig(XPAR_AXIDMA_0_DEVICE_ID);
-  spiConfig = XSpi_LookupConfig(XPAR_AXI_QUAD_SPI_0_DEVICE_ID);
-
-  XAxiDma_CfgInitialize(&axiDma, axiDmaConfig);
-  XSpi_CfgInitialize(&spi, spiConfig, spiConfig->BaseAddress);
-  XTmrCtr_Initialize(&tmrCtr, XPAR_AXI_TIMER_0_DEVICE_ID);
-
-  XTmrCtr_Start(&tmrCtr, 0);
-
   if (debugEnabled) {
     xil_printf("HAL_Init: Init vlan %x\n\r", rxBdSpace);
   }
@@ -174,15 +156,9 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
   if (debugEnabled) {
     xil_printf("HAL_Init: Init rings @ %x\r\n", rxBdSpace);
   }
-  rxRing = XAxiDma_GetRxRing(&axiDma);
-  txRing = XAxiDma_GetTxRing(&axiDma);
 
   memset(rxBdSpace, 0, sizeof(rxBdSpace));
   memset(txBdSpace, 0, sizeof(txBdSpace));
-  XAxiDma_BdRingCreate(rxRing, (UINTPTR)rxBdSpace, (UINTPTR)rxBdSpace,
-                       XAXIDMA_BD_MINIMUM_ALIGNMENT, BD_COUNT);
-  XAxiDma_BdRingCreate(txRing, (UINTPTR)txBdSpace, (UINTPTR)txBdSpace,
-                       XAXIDMA_BD_MINIMUM_ALIGNMENT, BD_COUNT);
 
   if (debugEnabled) {
     xil_printf("HAL_Init: Enable Ethernet MAC\r\n");

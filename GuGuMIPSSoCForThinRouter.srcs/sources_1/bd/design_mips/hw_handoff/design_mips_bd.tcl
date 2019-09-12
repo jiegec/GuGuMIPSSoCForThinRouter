@@ -421,6 +421,14 @@ proc create_root_design { parentCell } {
    CONFIG.LOGO_FILE {data/sym_notgate.png} \
  ] $util_vector_logic_0
 
+  # Create instance: vio_0, and set properties
+  set vio_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:vio:3.0 vio_0 ]
+  set_property -dict [ list \
+   CONFIG.C_EN_PROBE_IN_ACTIVITY {0} \
+   CONFIG.C_NUM_PROBE_IN {0} \
+   CONFIG.C_PROBE_OUT0_INIT_VAL {0x1} \
+ ] $vio_0
+
   # Create instance: xlconstant_0, and set properties
   set xlconstant_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:xlconstant:1.1 xlconstant_0 ]
   set_property -dict [ list \
@@ -463,7 +471,7 @@ set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_intf_nets mycpu_top_0_interface_
   connect_bd_net -net axi_ethernet_0_phy_rst_n [get_bd_ports eth_rst_n] [get_bd_pins axi_ethernet_0/phy_rst_n] [get_bd_pins eth_conf_0/rst_in_n]
   connect_bd_net -net clk_1 [get_bd_pins axi_bram_ctrl_0/s_axi_aclk] [get_bd_pins axi_bram_ctrl_1/s_axi_aclk] [get_bd_pins axi_eth_spi/s_axi_aclk] [get_bd_pins axi_ethernet_0/axis_clk] [get_bd_pins axi_ethernet_0/s_axi_lite_clk] [get_bd_pins axi_ethernet_0_dma/m_axi_mm2s_aclk] [get_bd_pins axi_ethernet_0_dma/m_axi_s2mm_aclk] [get_bd_pins axi_ethernet_0_dma/m_axi_sg_aclk] [get_bd_pins axi_ethernet_0_dma/s_axi_lite_aclk] [get_bd_pins axi_mem_intercon/ACLK] [get_bd_pins axi_mem_intercon/M00_ACLK] [get_bd_pins axi_mem_intercon/M01_ACLK] [get_bd_pins axi_mem_intercon/M02_ACLK] [get_bd_pins axi_mem_intercon/M06_ACLK] [get_bd_pins axi_mem_intercon/M07_ACLK] [get_bd_pins axi_mem_intercon/M08_ACLK] [get_bd_pins axi_mem_intercon/S00_ACLK] [get_bd_pins axi_mem_intercon/S01_ACLK] [get_bd_pins axi_mem_intercon/S02_ACLK] [get_bd_pins axi_mem_intercon/S03_ACLK] [get_bd_pins axi_mem_intercon/S04_ACLK] [get_bd_pins axi_uartlite_0/s_axi_aclk] [get_bd_pins clk_wiz/clk_out1] [get_bd_pins jtag_axi_0/aclk] [get_bd_pins mycpu_top_0/aclk] [get_bd_pins system_ila_0/clk]
   connect_bd_net -net clk_2 [get_bd_ports clk] [get_bd_pins clk_wiz/clk_in1]
-  connect_bd_net -net clk_wiz_clk_out2 [get_bd_pins axi_emc_base/rdclk] [get_bd_pins axi_emc_base/s_axi_aclk] [get_bd_pins axi_emc_ext/rdclk] [get_bd_pins axi_emc_ext/s_axi_aclk] [get_bd_pins axi_emc_flash/rdclk] [get_bd_pins axi_emc_flash/s_axi_aclk] [get_bd_pins axi_eth_spi/ext_spi_clk] [get_bd_pins axi_mem_intercon/M03_ACLK] [get_bd_pins axi_mem_intercon/M04_ACLK] [get_bd_pins axi_mem_intercon/M05_ACLK] [get_bd_pins clk_wiz/clk_out2] [get_bd_pins eth_conf_0/clk] [get_bd_pins rst_clk_50M/slowest_sync_clk]
+  connect_bd_net -net clk_wiz_clk_out2 [get_bd_pins axi_emc_base/rdclk] [get_bd_pins axi_emc_base/s_axi_aclk] [get_bd_pins axi_emc_ext/rdclk] [get_bd_pins axi_emc_ext/s_axi_aclk] [get_bd_pins axi_emc_flash/rdclk] [get_bd_pins axi_emc_flash/s_axi_aclk] [get_bd_pins axi_eth_spi/ext_spi_clk] [get_bd_pins axi_mem_intercon/M03_ACLK] [get_bd_pins axi_mem_intercon/M04_ACLK] [get_bd_pins axi_mem_intercon/M05_ACLK] [get_bd_pins clk_wiz/clk_out2] [get_bd_pins eth_conf_0/clk] [get_bd_pins rst_clk_50M/slowest_sync_clk] [get_bd_pins vio_0/clk]
   connect_bd_net -net clk_wiz_clk_out3 [get_bd_pins axi_ethernet_0/ref_clk] [get_bd_pins clk_wiz/clk_out3]
   connect_bd_net -net clk_wiz_clk_out4 [get_bd_pins axi_ethernet_0/gtx_clk] [get_bd_pins clk_wiz/clk_out4]
   connect_bd_net -net clk_wiz_locked [get_bd_pins clk_wiz/locked] [get_bd_pins rst_clk_50M/dcm_locked]
@@ -490,6 +498,7 @@ set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_nets debug_wb_rf_wnum]
   connect_bd_net -net rst_clk_50M_mb_reset [get_bd_pins rst_clk_50M/mb_reset] [get_bd_pins util_vector_logic_0/Op1]
   connect_bd_net -net rst_clk_50M_peripheral_aresetn [get_bd_pins axi_bram_ctrl_0/s_axi_aresetn] [get_bd_pins axi_bram_ctrl_1/s_axi_aresetn] [get_bd_pins axi_emc_base/s_axi_aresetn] [get_bd_pins axi_emc_ext/s_axi_aresetn] [get_bd_pins axi_emc_flash/s_axi_aresetn] [get_bd_pins axi_eth_spi/s_axi_aresetn] [get_bd_pins axi_ethernet_0/s_axi_lite_resetn] [get_bd_pins axi_ethernet_0_dma/axi_resetn] [get_bd_pins axi_mem_intercon/M00_ARESETN] [get_bd_pins axi_mem_intercon/M01_ARESETN] [get_bd_pins axi_mem_intercon/M02_ARESETN] [get_bd_pins axi_mem_intercon/M03_ARESETN] [get_bd_pins axi_mem_intercon/M04_ARESETN] [get_bd_pins axi_mem_intercon/M05_ARESETN] [get_bd_pins axi_mem_intercon/M06_ARESETN] [get_bd_pins axi_mem_intercon/M07_ARESETN] [get_bd_pins axi_mem_intercon/M08_ARESETN] [get_bd_pins axi_mem_intercon/S00_ARESETN] [get_bd_pins axi_mem_intercon/S01_ARESETN] [get_bd_pins axi_mem_intercon/S02_ARESETN] [get_bd_pins axi_mem_intercon/S03_ARESETN] [get_bd_pins axi_mem_intercon/S04_ARESETN] [get_bd_pins axi_uartlite_0/s_axi_aresetn] [get_bd_pins jtag_axi_0/aresetn] [get_bd_pins rst_clk_50M/peripheral_aresetn] [get_bd_pins system_ila_0/resetn]
   connect_bd_net -net util_vector_logic_0_Res [get_bd_pins mycpu_top_0/aresetn] [get_bd_pins util_vector_logic_0/Res]
+  connect_bd_net -net vio_0_probe_out0 [get_bd_pins rst_clk_50M/aux_reset_in] [get_bd_pins vio_0/probe_out0]
   connect_bd_net -net xlconstant_0_dout [get_bd_pins clk_wiz/reset] [get_bd_pins xlconstant_0/dout]
 
   # Create address segments

@@ -2,10 +2,10 @@
 <Root MajorVersion="0" MinorVersion="36">
   <CompositeFile CompositeFileTopName="design_mips" CanBeSetAsTop="false" CanDisplayChildGraph="true">
     <Description>Composite Fileset</Description>
-    <Generation Name="SYNTHESIS" State="GENERATED" Timestamp="1568115378"/>
-    <Generation Name="IMPLEMENTATION" State="GENERATED" Timestamp="1568115378"/>
-    <Generation Name="SIMULATION" State="GENERATED" Timestamp="1568115378"/>
-    <Generation Name="HW_HANDOFF" State="GENERATED" Timestamp="1568115378"/>
+    <Generation Name="SYNTHESIS" State="GENERATED" Timestamp="1568287976"/>
+    <Generation Name="IMPLEMENTATION" State="GENERATED" Timestamp="1568287976"/>
+    <Generation Name="SIMULATION" State="GENERATED" Timestamp="1568287976"/>
+    <Generation Name="HW_HANDOFF" State="GENERATED" Timestamp="1568287976"/>
     <FileCollection Name="SOURCES" Type="SOURCES">
       <File Name="ip/design_mips_mycpu_top_0_0/design_mips_mycpu_top_0_0.xci" Type="IP">
         <Instance HierarchyPath="mycpu_top_0"/>
@@ -180,6 +180,14 @@
       </File>
       <File Name="ip/design_mips_eth_conf_0_0/design_mips_eth_conf_0_0.xci" Type="IP">
         <Instance HierarchyPath="eth_conf_0"/>
+        <Properties IsEditable="false" IsVisible="true" Timestamp="0" IsTrackable="true" IsStatusTracked="true"/>
+        <Library Name="xil_defaultlib"/>
+        <UsedIn Val="SYNTHESIS"/>
+        <UsedIn Val="IMPLEMENTATION"/>
+        <UsedIn Val="SIMULATION"/>
+      </File>
+      <File Name="ip/design_mips_vio_0_0/design_mips_vio_0_0.xci" Type="IP">
+        <Instance HierarchyPath="vio_0"/>
         <Properties IsEditable="false" IsVisible="true" Timestamp="0" IsTrackable="true" IsStatusTracked="true"/>
         <Library Name="xil_defaultlib"/>
         <UsedIn Val="SYNTHESIS"/>

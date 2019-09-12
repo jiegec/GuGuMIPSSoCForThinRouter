@@ -1,11 +1,5 @@
-typedef struct XSpi_Config {
-  u32 BaseAddress;
-} XSpi_Config;
 typedef struct XSpi {
 } XSpi;
-
-#define XAxiDma_BdRingMemCalc(align, count) ((count)*0x40)
-#define XAXIDMA_BD_MINIMUM_ALIGNMENT 0x40
 
 extern volatile uint32_t *SPI_RESET;
 extern volatile uint32_t *SPI_CONTROL;
@@ -41,10 +35,3 @@ void XSpi_Transfer(XSpi *spi, u8 *buffer, u8 *outBuffer, uint8_t len) {
     }
   }
 }
-
-#define XPAR_AXI_QUAD_SPI_0_DEVICE_ID 0
-XSpi_Config *XSpi_LookupConfig(int id) {
-  static XSpi_Config config;
-  return &config;
-}
-void XSpi_CfgInitialize(XSpi *dma, XSpi_Config *cfg, u32 addr) {}
