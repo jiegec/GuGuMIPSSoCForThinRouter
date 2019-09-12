@@ -271,7 +271,7 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
 uint64_t HAL_GetTicks() {
   uint32_t cp0_count;
   asm volatile("mfc0 %0, $9, 0;" : "=r"(cp0_count));
-  return cp0_count;
+  return cp0_count / 50000;
 }
 
 int HAL_ArpGetMacAddress(int if_index, in_addr_t ip, macaddr_t o_mac) {

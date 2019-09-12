@@ -107,6 +107,24 @@ __attribute((section(".text.init"))) void main() {
                      0x0200000a + ((1 - if_index) << 16), 1 - if_index);
         }
       }
+    } else if (strequ(buffer, "broadcast")) {
+      uint32_t ticks = HAL_GetTicks();
+      int if_index = 0;
+      while (1) {
+        if ((uint32_t)HAL_GetTicks() - ticks < 1000) {
+          continue;
+        }
+        ticks = HAL_GetTicks();
+        if_index = (if_index + 1) % 4;
+        int length = 64;
+        for (int i = 0; i < length / 4; i++) {
+          packet[i] = HAL_GetTicks();
+        }
+
+        macaddr_t dst_mac = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+        HAL_SendIPPacket(if_index, (uint8_t *)packet, length, dst_mac);
+        xil_printf("Sending to if %d ticks %d\n", if_index, ticks);
+      }
     } else {
       puts("Nothing to do\r\n");
     }
