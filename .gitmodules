@@ -1,3 +1,6 @@
 [submodule "GuGuMIPS"]
 	path = GuGuMIPS
 	url = git@github.com:jiegec/GuGuMIPS.git
+[submodule "repo/naiverouter"]
+	path = repo/naiverouter
+	url = git@github.com:jiegec/naiverouter.git

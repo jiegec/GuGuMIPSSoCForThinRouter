@@ -81,6 +81,7 @@
 *.ip_user_files/
 *.hw/
 *.tmp/
+*.sim/
 .Xil/
 !*.md
 !GuGuMIPS
