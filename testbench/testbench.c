@@ -11,6 +11,7 @@ struct Route routingTable[1024];
 int routingTableSize = 0;
 u8 ripMAC[6] = {0x01, 0x00, 0x5e, 0x00, 0x00, 0x09};
 u8 portMAC[6] = {2, 2, 3, 3, 0, 0};
+volatile uint32_t *ROUTING_TABLE = (uint32_t *)0xBFB00000;
 
 int strequ(char *a, char *b) {
   while (*a && *b) {
@@ -260,6 +261,59 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
   }
 }
 
+u32 all_routes[1024][4];
+void printCurrentRoutingTable() {
+  u32 offset = 0;
+  int j = 0;
+  for (int flag = 1; flag && j < 1024; j++) {
+    u32 route[4];
+    flag = 0;
+    for (u32 i = 0; i < 4; i++) {
+      route[i] = *(ROUTING_TABLE + offset + i);
+      if (route[i]) {
+        flag = 1;
+      }
+    }
+    offset += 4;
+    memcpy(all_routes[j], route, sizeof(route));
+  }
+  j--;
+  xil_printf("Hardware table:\n");
+  for (int i = 0; i < j; i++) {
+    xil_printf("\t%d: ", i);
+    printIP(all_routes[i][2]);
+    xil_printf(" netmask ");
+    printIP(all_routes[i][1]);
+    xil_printf(" via ");
+    printIP(all_routes[i][0]);
+    xil_printf(" dev port%d\n", all_routes[i][3]);
+  }
+  xil_printf("Software table:\n");
+  for (int i = 0; i < routingTableSize; i++) {
+    if (routingTable[i].nexthop != 0) {
+      // indirect
+      xil_printf("\t%d: ", i);
+      printIP(routingTable[i].ip);
+      xil_printf(" netmask ");
+      printIP(routingTable[i].netmask);
+      xil_printf(" via ");
+      printIP(routingTable[i].nexthop);
+      xil_printf(" dev port%d metric %d timer %d learned from ",
+             routingTable[i].port, routingTable[i].metric,
+             ((u32)HAL_GetTicks()) / 1000 - routingTable[i].updateTime);
+      printIP(routingTable[i].origin);
+      xil_printf("\n");
+    } else {
+      xil_printf("\t%d: ", i);
+      printIP(routingTable[i].ip);
+      xil_printf(" netmask ");
+      printIP(routingTable[i].netmask);
+      xil_printf(" dev port%d\n", routingTable[i].port);
+    }
+  }
+  // applyCurrentRoutingTable();
+}
+
 __attribute((section(".text.init"))) void main() {
   uint32_t *ptr = &_bss_start;
   uint32_t *end = &_bss_end;
@@ -378,6 +432,7 @@ __attribute((section(".text.init"))) void main() {
         if (HAL_GetTicks() > time + 1000 * 5) {
           // 5s timer
           sendRIPReponse();
+          printCurrentRoutingTable();
           time = HAL_GetTicks();
         }
 
@@ -386,21 +441,23 @@ __attribute((section(".text.init"))) void main() {
         int if_index;
         int res = HAL_ReceiveIPPacket((1 << N_IFACE_ON_BOARD) - 1,
                                       (uint8_t *)packet, sizeof(packet),
-                                      src_mac, dst_mac, -1, &if_index);
-        xil_printf("res %d if_index %d\n", res, if_index);
-        xil_printf("from ");
-        for (int i = 0; i < 6; i++) {
-          puthex_u8(src_mac[i]);
+                                      src_mac, dst_mac, 1000, &if_index);
+        if (0) {
+          xil_printf("res %d if_index %d\n", res, if_index);
+          xil_printf("from ");
+          for (int i = 0; i < 6; i++) {
+            puthex_u8(src_mac[i]);
+          }
+          xil_printf(" to ");
+          for (int i = 0; i < 6; i++) {
+            puthex_u8(dst_mac[i]);
+          }
+          xil_printf("\n");
+          for (int i = 0; i < res; i++) {
+            puthex_u8(((uint8_t *)packet)[i]);
+          }
+          xil_printf("\n");
         }
-        xil_printf(" to ");
-        for (int i = 0; i < 6; i++) {
-          puthex_u8(dst_mac[i]);
-        }
-        xil_printf("\n");
-        for (int i = 0; i < res; i++) {
-          puthex_u8(((uint8_t *)packet)[i]);
-        }
-        xil_printf("\n");
 
         struct Ip *ip = (struct Ip *)packet;
         handleIP(if_index, ip, src_mac);
