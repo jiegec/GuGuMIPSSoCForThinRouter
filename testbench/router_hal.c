@@ -241,9 +241,15 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
 }
 
 uint64_t HAL_GetTicks() {
+  static uint32_t cp0_count_hi = 0;
+  static uint32_t last_cp0_count_hi = 0;
   uint32_t cp0_count;
   asm volatile("mfc0 %0, $9, 0;" : "=r"(cp0_count));
-  return cp0_count / 50000;
+  if (cp0_count & 0xf0000000 != last_cp0_count_hi) {
+    last_cp0_count_hi = cp0_count & 0xf0000000;
+    cp0_count_hi++;
+  }
+  return cp0_count_hi * 85900 + cp0_count / 50000;
 }
 
 int HAL_ArpGetMacAddress(int if_index, in_addr_t ip, macaddr_t o_mac) {
