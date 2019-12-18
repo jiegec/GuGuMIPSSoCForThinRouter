@@ -1,9 +1,14 @@
 #include "io.h"
 #include "router_hal.h"
+#include "structs.h"
+#include "lib.h"
 #include "xil_printf.h"
 
 char buffer[1024];
 uint32_t packet[1024];
+struct Route routingTable[1024];
+int routingTableSize = 0;
+const u8 ripMAC[6] = {0x01, 0x00, 0x5e, 0x00, 0x00, 0x09};
 
 int strequ(char *a, char *b) {
   while (*a && *b) {
@@ -19,6 +24,86 @@ in_addr_t if_addrs[N_IFACE_ON_BOARD] = {0x0a000001, 0x0a000101, 0x0a000201,
 
 extern uint32_t _bss_start;
 extern uint32_t _bss_end;
+
+u16 checksumAdd(u16 orig, u16 add) {
+  u32 ans = orig;
+  ans += add;
+  ans = (ans >> 16) + (ans & 0xFFFF);
+  ans = (ans >> 16) + (ans & 0xFFFF);
+  return (u16)ans;
+}
+
+void fillIpChecksum(struct Ip *ip) {
+  u16 *data = ((u16 *)ip);
+  ip->headerChecksum = 0;
+  u16 checksum = 0;
+  for (int i = 0; i < 10; i++) {
+    checksum = checksumAdd(checksum, data[i]);
+  }
+  ip->headerChecksum = ~checksum;
+}
+
+void sendRIPReponse() {
+  // send RIP response
+  u32 buffer[512];
+  for (u8 port = 0; port < 4; port++) {
+    u8 portIP[] = {10, 0, port, 1};
+    u8 ripIP[4] = {224, 0, 0, 9};
+    struct Ip *ip = (struct Ip *)buffer;
+    ip->versionIHL = 0x45;
+    ip->dsf = 0;
+
+    int routes = 0;
+    for (int r = 0; r < routingTableSize; r++) {
+      ip->payload.udp.payload.rip.routes[routes].family = bswap16(2);
+      ip->payload.udp.payload.rip.routes[routes].routeTag = 0;
+      ip->payload.udp.payload.rip.routes[routes].ip =
+          bswap32(routingTable[r].ip);
+      ip->payload.udp.payload.rip.routes[routes].netmask =
+          bswap32(routingTable[r].netmask);
+      ip->payload.udp.payload.rip.routes[routes].nexthop = bswap32(0);
+      if (routingTable[r].port != port) {
+        // not this port, split horizon
+        ip->payload.udp.payload.rip.routes[routes].metric =
+            bswap32(routingTable[r].metric);
+      } else {
+        // from this port, reverse poisoning
+        ip->payload.udp.payload.rip.routes[routes].metric = bswap32(16);
+      }
+      routes++;
+    }
+
+    if (routes == 0) {
+      routes = 1;
+      ip->payload.udp.payload.rip.routes[0].family = 0;
+      ip->payload.udp.payload.rip.routes[0].routeTag = 0;
+      ip->payload.udp.payload.rip.routes[0].ip = 0;
+      ip->payload.udp.payload.rip.routes[0].netmask = 0;
+      ip->payload.udp.payload.rip.routes[0].nexthop = 0;
+      ip->payload.udp.payload.rip.routes[0].metric = 0;
+    }
+
+    u16 totalLength = 20 + 8 + 4 + 20 * routes;
+
+    ip->totalLength = bswap16(totalLength);
+    ip->identification = 0;
+    ip->flags = 0;
+    ip->ttl = 1;
+    ip->protocol = 17; // UDP
+    memcpy(ip->sourceIP, portIP, 4);
+    memcpy(ip->destIP, ripIP, 4);
+    ip->payload.udp.srcPort = bswap16(520);
+    ip->payload.udp.dstPort = bswap16(520);
+    ip->payload.udp.length = bswap16(totalLength - 20);
+    ip->payload.udp.checksum = 0;
+    ip->payload.udp.payload.rip.command = 2;
+    ip->payload.udp.payload.rip.version = 2;
+    ip->payload.udp.payload.rip.zero = 0;
+
+    fillIpChecksum(ip);
+    HAL_SendIPPacket(port, buffer, totalLength, ripMAC);
+  }
+}
 
 __attribute((section(".text.init"))) void main() {
   uint32_t *ptr = &_bss_start;
@@ -43,8 +128,8 @@ __attribute((section(".text.init"))) void main() {
       HAL_Init(1, if_addrs);
 
       // confirms that register written is correct
-      //if (spi_read_register(84) != 5) {
-        //puts("Warning: SPI might not working properly");
+      // if (spi_read_register(84) != 5) {
+      // puts("Warning: SPI might not working properly");
       //}
     } else if (strequ(buffer, "echo")) {
       while (1) {
@@ -68,7 +153,7 @@ __attribute((section(".text.init"))) void main() {
           puthex_u8(((uint8_t *)packet)[i]);
         }
         xil_printf("\n");
-        //HAL_SendIPPacket(if_index, (uint8_t *)packet, res, src_mac);
+        // HAL_SendIPPacket(if_index, (uint8_t *)packet, res, src_mac);
       }
     } else if (strequ(buffer, "forward")) {
       while (1) {
@@ -118,8 +203,30 @@ __attribute((section(".text.init"))) void main() {
       }
     } else if (strequ(buffer, "rip")) {
       // Init
+
+      // setup routing table
+      routingTableSize = 0;
+      for (int i = 0; i < 4; i++) {
+        routingTable[i].ip = 0x0a000000 + (i << 8);
+        routingTable[i].netmask = 0xffffff00;
+        routingTable[i].metric = 1;
+        routingTable[i].nexthop = 0; // direct route
+        routingTable[i].port = i;
+        routingTable[i].updateTime = 0;
+        routingTable[i].origin = 0; // myself
+        routingTableSize++;
+      }
+
       HAL_Init(1, if_addrs);
+      uint64_t time = HAL_GetTicks();
       while (1) {
+        if (HAL_GetTicks() > time + 1000 * 5) {
+          // 5s timer
+          xil_printf("Timer\n");
+          sendRIPReponse();
+          time = HAL_GetTicks();
+        }
+
         macaddr_t src_mac;
         macaddr_t dst_mac;
         int if_index;
@@ -140,7 +247,8 @@ __attribute((section(".text.init"))) void main() {
           puthex_u8(((uint8_t *)packet)[i]);
         }
         xil_printf("\n");
-        // TODO
+
+        struct Ip *ip = (struct Ip *)packet;
       }
     } else {
       puts("Nothing to do\r\n");

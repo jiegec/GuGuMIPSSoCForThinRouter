@@ -1,8 +1,9 @@
 #include "router_hal.h"
 #include "io.h"
+#include "structs.h"
+#include "lib.h"
 #include "xaxidma.h"
 #include "xil_printf.h"
-#include "xspi.h"
 
 const int IP_OFFSET = 4 + 14;
 const int ARP_LENGTH = 28;
@@ -54,7 +55,7 @@ volatile struct DMADesc txBdSpace[BD_COUNT]
     __attribute__((aligned(sizeof(struct DMADesc))));
 uint8_t txBufSpace[BD_COUNT][BUFFER_SIZE];
 
-struct EthernetFrame {
+struct EthernetTaggedFrame {
   u8 dstMAC[6];
   u8 srcMAC[6];
   u16 vlanEtherType;
@@ -507,11 +508,14 @@ int HAL_SendIPPacket(int if_index, uint8_t *buffer, size_t length,
   memset(((uint8_t *)current + 8), 0, sizeof(struct DMADesc) - 8);
   current->bufferAddrLo =
       (uint32_t)&txBufSpace[txIndex] - PHYSICAL_MEMORY_OFFSET;
-  current->control = (uint16_t)(length + IP_OFFSET);
+  current->control = (uint16_t)(length + IP_OFFSET + 1);
   current->control = current->control | XAXIDMA_BD_CTRL_TXSOF_MASK |
                      XAXIDMA_BD_CTRL_TXEOF_MASK;
 
   u8 *data = (u8 *)((uint32_t)&txBufSpace[txIndex] + UNCACHED_MEMORY_OFFSET);
+  // skip port
+  data[0] = 0;
+  data = &data[1];
   memcpy(data, dst_mac, sizeof(macaddr_t));
   memcpy(&data[6], interface_mac, sizeof(macaddr_t));
   // VLAN

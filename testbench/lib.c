@@ -38,3 +38,21 @@ int memcmp(void *to, void *from, uint32_t count) {
   }
   return 0;
 }
+
+uint32_t bswap32(uint32_t arg) {
+  uint32_t ans = 0;
+  ans |= (arg & 0xFF) << 24;
+  ans |= (arg & 0xFF00) << 8;
+  ans |= (arg & 0xFF0000) >> 8;
+  ans |= (arg & 0xFF000000) >> 24;
+  return ans;
+}
+
+uint16_t bswap16(uint16_t arg) {
+  uint16_t ans = 0;
+  ans |= (arg & 0xFF) << 8;
+  ans |= (arg & 0xFF00) >> 8;
+  return ans;
+}
+
+uint32_t htonl(uint32_t arg) { return bswap32(arg); }
