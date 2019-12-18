@@ -77,7 +77,7 @@ __attribute((section(".text.init"))) void main() {
           puthex_u8(((uint8_t *)packet)[i]);
         }
         xil_printf("\n");
-        HAL_SendIPPacket(if_index, (uint8_t *)packet, res, src_mac);
+        //HAL_SendIPPacket(if_index, (uint8_t *)packet, res, src_mac);
       }
     } else if (strequ(buffer, "forward")) {
       while (1) {

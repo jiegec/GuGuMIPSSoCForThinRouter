@@ -4,7 +4,7 @@
 #include "xil_printf.h"
 #include "xspi.h"
 
-const int IP_OFFSET = 14 + 4;
+const int IP_OFFSET = 4 + 14;
 const int ARP_LENGTH = 28;
 
 int inited = 0;
@@ -365,6 +365,13 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
       u32 length = (uint16_t)current->status;
       uint8_t *data = (uint8_t *)((uint32_t)&rxBufSpace[rxIndex][0] +
                                   UNCACHED_MEMORY_OFFSET);
+      // skip port number
+      data = &data[1];
+      xil_printf("data ");
+      for (int i = 0; i < length; i++) {
+        puthex_u8(data[i]);
+      }
+      xil_printf("\n");
       if (data && length >= IP_OFFSET && data[12] == 0x81 && data[13] == 0x00 &&
           data[16] == 0x08 && data[17] == 0x00) {
         // IPv4
@@ -435,6 +442,8 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
 
           u8 *buffer =
               (u8 *)((uint32_t)&txBufSpace[txIndex] + UNCACHED_MEMORY_OFFSET);
+          buffer[0] = 0; // router port
+          buffer = &buffer[1];
           memcpy(buffer, &data[6], sizeof(macaddr_t));
           memcpy(&buffer[6], interface_mac, sizeof(macaddr_t));
           // VLAN
@@ -481,7 +490,9 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
         }
       } else {
         if (debugEnabled) {
-          xil_printf("HAL_ReceiveIPPacket: ignore unrecognized packet at time %d\r\n", (uint32_t)HAL_GetTicks());
+          xil_printf(
+              "HAL_ReceiveIPPacket: ignore unrecognized packet at time %d\r\n",
+              (uint32_t)HAL_GetTicks());
         }
       }
       PutBackBd(bd);
