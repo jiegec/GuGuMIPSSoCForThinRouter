@@ -1,11 +1,12 @@
 #include "io.h"
+#include "lib.h"
 #include "router_hal.h"
 #include "structs.h"
-#include "lib.h"
 #include "xil_printf.h"
 
 char buffer[1024];
 uint32_t packet[1024];
+u32 packet_buffer[512];
 struct Route routingTable[1024];
 int routingTableSize = 0;
 u8 ripMAC[6] = {0x01, 0x00, 0x5e, 0x00, 0x00, 0x09};
@@ -45,11 +46,10 @@ void fillIpChecksum(struct Ip *ip) {
 
 void sendRIPReponse() {
   // send RIP response
-  u32 buffer[512];
   for (u8 port = 0; port < 4; port++) {
     u8 portIP[] = {10, 0, port, 1};
     u8 ripIP[4] = {224, 0, 0, 9};
-    struct Ip *ip = (struct Ip *)buffer;
+    struct Ip *ip = (struct Ip *)packet_buffer;
     ip->versionIHL = 0x45;
     ip->dsf = 0;
 
@@ -101,7 +101,43 @@ void sendRIPReponse() {
     ip->payload.udp.payload.rip.zero = 0;
 
     fillIpChecksum(ip);
-    HAL_SendIPPacket(port, (u8 *)buffer, totalLength, ripMAC);
+    HAL_SendIPPacket(port, (u8 *)packet_buffer, totalLength, ripMAC);
+  }
+}
+
+void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
+  struct Ip *ipResp = (struct Ip *)packet_buffer;
+  u32 portIP = 0x0a000001 + (port << 8);
+  u32 portIPNet = htonl(portIP);
+  u32 destIP;
+  memcpy(&destIP, ip->destIP, sizeof(u32));
+  destIP = bswap32(destIP);
+  if (ip->protocol == 1 && portIP == destIP) {
+    // ICMP
+    if (ip->payload.icmp.type == 8) {
+      // ICMP echo request
+      ipResp->versionIHL = 0x45;
+      ipResp->dsf = 0;
+      u16 totalLength = bswap16(ip->totalLength);
+      ipResp->totalLength = ip->totalLength;
+      ipResp->identification = 0;
+      ipResp->flags = 0;
+      ipResp->ttl = 64;
+      ipResp->protocol = 1;
+      ipResp->headerChecksum = 0;
+      memcpy(ipResp->sourceIP, &portIPNet, 4);
+      memcpy(ipResp->destIP, ip->sourceIP, 4);
+      ipResp->payload.icmp.type = 0;
+      ipResp->payload.icmp.code = 0;
+      // type: 8 -> 0
+      ipResp->payload.icmp.checksum = checksumAdd(ip->payload.icmp.checksum, 8);
+      // assuming IHL=5
+      memcpy(ipResp->payload.icmp.data, ip->payload.icmp.data,
+             totalLength - 20 - 4);
+
+      fillIpChecksum(ipResp);
+      HAL_SendIPPacket(port, (u8 *)packet_buffer, totalLength, srcMAC);
+    }
   }
 }
 
@@ -249,6 +285,7 @@ __attribute((section(".text.init"))) void main() {
         xil_printf("\n");
 
         struct Ip *ip = (struct Ip *)packet;
+        handleIP(if_index, ip, src_mac);
       }
     } else {
       puts("Nothing to do\r\n");

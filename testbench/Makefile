@@ -8,7 +8,7 @@ MAKEFLAGS += --no-builtin-rules
 all: testbench.bin testbench.gen.s
 
 %.c.o: %.c *.h
-	$(TARGET)-gcc -c $< -EL -o $@ -ffreestanding -nostdlib -mips32r2 -mxgot -g -DROUTER_BACKEND_XILINX -I. -Os
+	$(TARGET)-gcc -c $< -EL -o $@ -ffreestanding -nostdlib -mips32r2 -mxgot -g -DROUTER_BACKEND_XILINX -I.
 
 testbench.o: testbench.c.o io.c.o lib.c.o xil_printf.c.o router_hal.c.o boot.lds
 	$(TARGET)-ld -EL $^ -T boot.lds -o $@
