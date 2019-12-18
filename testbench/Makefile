@@ -11,7 +11,7 @@ all: testbench.bin testbench.gen.s
 	$(TARGET)-gcc -c $< -EL -o $@ -ffreestanding -nostdlib -mips32r2 -mxgot -g -DROUTER_BACKEND_XILINX -I.
 
 testbench.o: testbench.c.o io.c.o lib.c.o xil_printf.c.o router_hal.c.o boot.lds
-	$(TARGET)-ld -EL $^ -T boot.lds -o $@
+	$(TARGET)-ld -EL $^ -T boot.lds -o $@ $(shell $(TARGET)-gcc -print-libgcc-file-name)
 
 %.bin: %.o
 	$(TARGET)-objcopy -O binary $^ -j .text -j .rodata -j .data -j .got $@

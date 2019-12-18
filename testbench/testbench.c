@@ -197,7 +197,7 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
           if (routingTable[i].ip == ip_net &&
               routingTable[i].netmask == netmask) {
             if (routingTable[i].origin == sourceIP) {
-              routingTable[i].updateTime = ((u32)HAL_GetTicks()) / 1000;
+              routingTable[i].updateTime = HAL_GetTicks() / 1000;
             }
             if (metric < routingTable[i].metric ||
                 memcmp(ip->sourceIP, &routingTable[i].origin, 4) == 0) {
@@ -212,7 +212,7 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
                 routingTable[i].metric = metric;
                 routingTable[i].nexthop = nexthop;
                 routingTable[i].port = port;
-                routingTable[i].updateTime = ((u32)HAL_GetTicks()) / 1000;
+                routingTable[i].updateTime = HAL_GetTicks() / 1000;
               }
             }
             flag = 1;
@@ -228,7 +228,7 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
           routingTable[routingTableSize].port = port;
           routingTable[routingTableSize].metric = metric;
           routingTable[routingTableSize].updateTime =
-              ((u32)HAL_GetTicks()) / 1000;
+              HAL_GetTicks() / 1000;
           routingTable[routingTableSize].origin = sourceIP;
           routingTableSize++;
         }
