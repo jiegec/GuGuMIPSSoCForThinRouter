@@ -10,7 +10,7 @@ const int ARP_LENGTH = 28;
 int inited = 0;
 int debugEnabled = 0;
 in_addr_t interface_addrs[N_IFACE_ON_BOARD] = {0};
-macaddr_t interface_mac = {2, 3, 3, 3, 3, 3};
+macaddr_t interface_mac = {2, 2, 3, 3, 0, 0};
 
 XSpi spi;
 
@@ -436,7 +436,7 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
           memset(((uint8_t *)current + 8), 0, sizeof(struct DMADesc) - 8);
           current->bufferAddrLo =
               (uint32_t)&txBufSpace[txIndex] - PHYSICAL_MEMORY_OFFSET;
-          current->control = (uint16_t)(IP_OFFSET + ARP_LENGTH);
+          current->control = (uint16_t)(IP_OFFSET + ARP_LENGTH + 1);
           current->control = current->control | XAXIDMA_BD_CTRL_TXSOF_MASK |
                              XAXIDMA_BD_CTRL_TXEOF_MASK;
 
@@ -474,6 +474,11 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
           // target
           memcpy(&buffer[36], &data[26], sizeof(macaddr_t));
           memcpy(&buffer[42], &data[32], sizeof(in_addr_t));
+          xil_printf("reply ");
+          for (int i = 0; i < IP_OFFSET + ARP_LENGTH + 1; i++) {
+            puthex_u8(buffer[i-1]);
+          }
+          xil_printf("\n");
 
           *DMA_MM2S_TAILDESC =
               ((uint32_t)&txBdSpace[txIndex]) - PHYSICAL_MEMORY_OFFSET;
