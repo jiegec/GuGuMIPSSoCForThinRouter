@@ -32,14 +32,7 @@ __attribute((section(".text.init"))) void main() {
     puts(">> ");
     gets(buffer);
     puts("\r\n");
-    if (strequ(buffer, "spi")) {
-      puts("SPI status: ");
-      puthex(spi_status());
-      puts("\r\n");
-      puts("SPI control: ");
-      puthex(spi_control());
-      puts("\r\n");
-    } else if (strequ(buffer, "setup")) {
+    if (strequ(buffer, "setup")) {
       puts("IP: ");
       gets(buffer);
       int ip = buffer[0] - '0';
@@ -53,8 +46,6 @@ __attribute((section(".text.init"))) void main() {
       //if (spi_read_register(84) != 5) {
         //puts("Warning: SPI might not working properly");
       //}
-    } else if (strequ(buffer, "poll")) {
-      eth_poll_packet(packet);
     } else if (strequ(buffer, "echo")) {
       while (1) {
         macaddr_t src_mac;
@@ -124,6 +115,32 @@ __attribute((section(".text.init"))) void main() {
         macaddr_t dst_mac = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
         HAL_SendIPPacket(if_index, (uint8_t *)packet, length, dst_mac);
         xil_printf("Sending to if %d ticks %d\n", if_index, ticks);
+      }
+    } else if (strequ(buffer, "rip")) {
+      // Init
+      HAL_Init(1, if_addrs);
+      while (1) {
+        macaddr_t src_mac;
+        macaddr_t dst_mac;
+        int if_index;
+        int res = HAL_ReceiveIPPacket((1 << N_IFACE_ON_BOARD) - 1,
+                                      (uint8_t *)packet, sizeof(packet),
+                                      src_mac, dst_mac, -1, &if_index);
+        xil_printf("res %d if_index %d\n", res, if_index);
+        xil_printf("from ");
+        for (int i = 0; i < 6; i++) {
+          puthex_u8(src_mac[i]);
+        }
+        xil_printf(" to ");
+        for (int i = 0; i < 6; i++) {
+          puthex_u8(dst_mac[i]);
+        }
+        xil_printf("\n");
+        for (int i = 0; i < res; i++) {
+          puthex_u8(((uint8_t *)packet)[i]);
+        }
+        xil_printf("\n");
+        // TODO
       }
     } else {
       puts("Nothing to do\r\n");

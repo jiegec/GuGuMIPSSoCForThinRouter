@@ -12,8 +12,6 @@ int debugEnabled = 0;
 in_addr_t interface_addrs[N_IFACE_ON_BOARD] = {0};
 macaddr_t interface_mac = {2, 2, 3, 3, 0, 0};
 
-XSpi spi;
-
 #define BD_COUNT 128
 #define BUFFER_SIZE 2048
 #define PHYSICAL_MEMORY_OFFSET 0x80000000
@@ -74,20 +72,6 @@ struct ArpTableEntry {
   in_addr_t ip;
 } arpTable[ARP_TABLE_SIZE];
 
-void SpiWriteRegister(u8 addr, u8 data) {
-  u8 writeBuffer[3];
-  // write
-  writeBuffer[0] = 0x40 | (addr >> 7);
-  writeBuffer[1] = addr << 1;
-  writeBuffer[2] = data;
-  // XSpi_SetSlaveSelect(&spi, 1);
-  // XSpi_Transfer(&spi, writeBuffer, NULL, 3);
-  spi_write_register(addr, data);
-  if (debugEnabled) {
-    xil_printf("HAL_Init: Write SPI %d = %d\r\n", addr, data);
-  }
-}
-
 void PutBackBd(XAxiDma_Bd *bd) {
   volatile struct DMADesc *current =
       (struct DMADesc *)((uint32_t)&rxBdSpace[rxIndex] +
@@ -131,9 +115,6 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
   if (debugEnabled) {
     xil_printf("HAL_Init: Init vlan %x\n\r", rxBdSpace);
   }
-  XSpi_SetOptions(&spi, XSP_MASTER_OPTION | XSP_MANUAL_SSELECT_OPTION);
-  XSpi_Start(&spi);
-  XSpi_IntrGlobalDisable(&spi);
   /*
   // P1-P4 Tag Removal
   SpiWriteRegister(16, 2);
