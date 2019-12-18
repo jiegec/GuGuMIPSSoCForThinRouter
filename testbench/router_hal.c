@@ -33,6 +33,8 @@ extern volatile uint32_t *DMA_MM2S_CURDESC_HI;
 extern volatile uint32_t *DMA_MM2S_TAILDESC;
 extern volatile uint32_t *DMA_MM2S_TAILDESC_HI;
 
+volatile uint32_t *ROUTER_RESET_N = (uint32_t *)0xBFA00000;
+
 struct DMADesc {
   uint32_t nextDescLo;
   uint32_t nextDescHi;
@@ -194,6 +196,15 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
     current->padding[2] = 0;
   }
 
+  // reset
+  *ROUTER_RESET_N = 0;
+  *DMA_S2MM_DMACR = 1 << 2;
+  while (*DMA_S2MM_DMACR & (1 << 2))
+    ;
+  *DMA_MM2S_DMACR = 1 << 2;
+  while (*DMA_MM2S_DMACR & (1 << 2))
+    ;
+
   *DMA_S2MM_CURDESC = ((uint32_t)&rxBdSpace[0]) - PHYSICAL_MEMORY_OFFSET;
   *DMA_S2MM_CURDESC_HI = 0;
 
@@ -234,6 +245,9 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
   *DMA_MM2S_CURDESC_HI = 0;
 
   *DMA_MM2S_DMACR = 1 << 0;
+
+  // start router ip
+  *ROUTER_RESET_N = 1;
 
   txIndex = 0;
 
