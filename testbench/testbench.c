@@ -8,7 +8,7 @@ char buffer[1024];
 uint32_t packet[1024];
 struct Route routingTable[1024];
 int routingTableSize = 0;
-const u8 ripMAC[6] = {0x01, 0x00, 0x5e, 0x00, 0x00, 0x09};
+u8 ripMAC[6] = {0x01, 0x00, 0x5e, 0x00, 0x00, 0x09};
 
 int strequ(char *a, char *b) {
   while (*a && *b) {
@@ -101,7 +101,7 @@ void sendRIPReponse() {
     ip->payload.udp.payload.rip.zero = 0;
 
     fillIpChecksum(ip);
-    HAL_SendIPPacket(port, buffer, totalLength, ripMAC);
+    HAL_SendIPPacket(port, (u8 *)buffer, totalLength, ripMAC);
   }
 }
 
