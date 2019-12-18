@@ -10,6 +10,7 @@ u32 packet_buffer[512];
 struct Route routingTable[1024];
 int routingTableSize = 0;
 u8 ripMAC[6] = {0x01, 0x00, 0x5e, 0x00, 0x00, 0x09};
+u8 portMAC[6] = {2, 2, 3, 3, 0, 0};
 
 int strequ(char *a, char *b) {
   while (*a && *b) {
@@ -18,6 +19,11 @@ int strequ(char *a, char *b) {
     }
   }
   return *a == *b;
+}
+
+void printIP(u32 ip) {
+    int p1 = ip >> 24, p2 = (ip >> 16) & 0xFF, p3 = (ip >> 8) & 0xFF, p4 = ip & 0xFF;
+    xil_printf("%d.%d.%d.%d", p1, p2, p3, p4);
 }
 
 in_addr_t if_addrs[N_IFACE_ON_BOARD] = {0x0a000001, 0x0a000101, 0x0a000201,
@@ -42,6 +48,16 @@ void fillIpChecksum(struct Ip *ip) {
     checksum = checksumAdd(checksum, data[i]);
   }
   ip->headerChecksum = ~checksum;
+}
+
+void fillIcmpChecksum(struct Icmp *icmp, u32 length) {
+  icmp->checksum = 0;
+  u16 *data = ((u16 *)icmp);
+  u16 checksum = 0;
+  for (int i = 0; i < length / 2; i++) {
+    checksum = checksumAdd(checksum, data[i]);
+  }
+  icmp->checksum = ~checksum;
 }
 
 void sendRIPReponse() {
@@ -137,6 +153,108 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
 
       fillIpChecksum(ipResp);
       HAL_SendIPPacket(port, (u8 *)packet_buffer, totalLength, srcMAC);
+    } else if (ip->protocol == 17) {
+      // UDP
+      if (ip->payload.udp.srcPort == bswap16(520) &&
+          ip->payload.udp.dstPort == bswap16(520)) {
+        // RIP
+        xil_printf("Got RIP response from port %d:\n", port);
+        u16 totalLength = bswap16(ip->totalLength);
+        u32 sourceIP;
+        memcpy(&sourceIP, ip->sourceIP, sizeof(u32));
+        sourceIP = bswap32(sourceIP);
+        int totalRoutes = (totalLength - 20 - 8 - 4) / 20;
+        for (int routes = 0; routes < totalRoutes; routes++) {
+          u32 ip_net = bswap32(ip->payload.udp.payload.rip.routes[routes].ip);
+          u32 netmask =
+              bswap32(ip->payload.udp.payload.rip.routes[routes].netmask);
+          u32 nexthop =
+              bswap32(ip->payload.udp.payload.rip.routes[routes].nexthop);
+          if (nexthop == 0) {
+            memcpy(&nexthop, ip->sourceIP, 4);
+            nexthop = bswap32(nexthop);
+          }
+          u32 metric =
+              bswap32(ip->payload.udp.payload.rip.routes[routes].metric);
+
+          xil_printf("\t%d: ", routes);
+          printIP(ip_net);
+          xil_printf(" netmask ");
+          printIP(netmask);
+          xil_printf(" nexthop ");
+          printIP(nexthop);
+          xil_printf(" metric %ld\n", metric);
+
+          metric += 1;
+          if (metric > 16) {
+            metric = 16;
+          }
+
+          int flag = 0;
+          for (int i = 0; i < routingTableSize; i++) {
+            if (routingTable[i].ip == ip_net &&
+                routingTable[i].netmask == netmask) {
+              if (routingTable[i].origin == sourceIP) {
+                routingTable[i].updateTime = ((u32)HAL_GetTicks()) / 1000;
+              }
+              if (metric < routingTable[i].metric ||
+                  memcmp(ip->sourceIP, &routingTable[i].origin, 4) == 0) {
+                // update this entry
+                if (metric >= 16) {
+                  // remove this entry
+                  memmove(&routingTable[i], &routingTable[i + 1],
+                          sizeof(struct Route) * (routingTableSize - i - 1));
+                  routingTableSize--;
+                  i--;
+                } else {
+                  routingTable[i].metric = metric;
+                  routingTable[i].nexthop = nexthop;
+                  routingTable[i].port = port;
+                  routingTable[i].updateTime = ((u32)HAL_GetTicks()) / 1000;
+                }
+              }
+              flag = 1;
+              break;
+            }
+          }
+
+          if (!flag && metric < 16) {
+            // add this entry
+            routingTable[routingTableSize].ip = ip_net;
+            routingTable[routingTableSize].netmask = netmask;
+            routingTable[routingTableSize].nexthop = nexthop;
+            routingTable[routingTableSize].port = port;
+            routingTable[routingTableSize].metric = metric;
+            routingTable[routingTableSize].updateTime = ((u32)HAL_GetTicks()) / 1000;
+            routingTable[routingTableSize].origin = sourceIP;
+            routingTableSize++;
+          }
+        }
+      }
+    } else if (ip->ttl == 1) {
+      // send ICMP Time Exceeded
+      ipResp->versionIHL = 0x45;
+      ipResp->dsf = 0;
+      u16 totalLength = 20 + 4 + 4 + 20 + 8;
+      ipResp->totalLength = bswap16(totalLength);
+      ipResp->identification = 0;
+      ipResp->flags = 0;
+      ipResp->ttl = 64;
+      ipResp->protocol = 1;
+      ipResp->headerChecksum = 0;
+      memcpy(ipResp->sourceIP, &portIPNet, 4);
+      memcpy(ipResp->destIP, ip->sourceIP, 4);
+      ipResp->payload.icmp.type = 11; // Time exceeded
+      ipResp->payload.icmp.code = 0;
+      ipResp->payload.icmp.checksum = 0;
+      // unused
+      memset(ipResp->payload.icmp.data, 0, 4);
+      // assuming IHL=5
+      memcpy(ipResp->payload.icmp.data + 4, &ip->versionIHL, 20 + 8);
+
+      fillIcmpChecksum(&ipResp->payload.icmp, 4 + 4 + 20 + 8);
+      fillIpChecksum(ipResp);
+      HAL_SendIPPacket(port, buffer, totalLength, srcMAC);
     }
   }
 }
