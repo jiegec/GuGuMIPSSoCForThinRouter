@@ -381,11 +381,6 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
                                   UNCACHED_MEMORY_OFFSET);
       // skip port number
       data = &data[1];
-      xil_printf("data ");
-      for (int i = 0; i < length; i++) {
-        puthex_u8(data[i]);
-      }
-      xil_printf("\n");
       if (data && length >= IP_OFFSET && data[12] == 0x81 && data[13] == 0x00 &&
           data[16] == 0x08 && data[17] == 0x00) {
         // IPv4
@@ -488,11 +483,6 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
           // target
           memcpy(&buffer[36], &data[26], sizeof(macaddr_t));
           memcpy(&buffer[42], &data[32], sizeof(in_addr_t));
-          xil_printf("reply ");
-          for (int i = 0; i < IP_OFFSET + ARP_LENGTH + 1; i++) {
-            puthex_u8(buffer[i-1]);
-          }
-          xil_printf("\n");
 
           *DMA_MM2S_TAILDESC =
               ((uint32_t)&txBdSpace[txIndex]) - PHYSICAL_MEMORY_OFFSET;
