@@ -261,6 +261,27 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
   }
 }
 
+void applyCurrentRoutingTable() {
+  //qsort(routingTable, routingTableSize, sizeof(struct Route), routingTableCmp);
+  // add all-zero route as the end
+  for (int i = 0; i < 4; i++) {
+    *(ROUTING_TABLE + routingTableSize * 4 + i) = 0;
+  }
+  for (int i = routingTableSize - 1; i >= 0; i--) {
+    if (routingTable[i].metric >= 16) {
+      *(ROUTING_TABLE + i * 4 + 0) = 0;
+      *(ROUTING_TABLE + i * 4 + 1) = 0;
+      *(ROUTING_TABLE + i * 4 + 2) = 0;
+      *(ROUTING_TABLE + i * 4 + 3) = 0;
+    } else {
+      *(ROUTING_TABLE + i * 4 + 0) = routingTable[i].nexthop;
+      *(ROUTING_TABLE + i * 4 + 1) = routingTable[i].netmask;
+      *(ROUTING_TABLE + i * 4 + 2) = routingTable[i].ip;
+      *(ROUTING_TABLE + i * 4 + 3) = routingTable[i].port;
+    }
+  }
+}
+
 u32 all_routes[1024][4];
 void printCurrentRoutingTable() {
   u32 offset = 0;
@@ -311,7 +332,7 @@ void printCurrentRoutingTable() {
       xil_printf(" dev port%d\n", routingTable[i].port);
     }
   }
-  // applyCurrentRoutingTable();
+  applyCurrentRoutingTable();
 }
 
 __attribute((section(".text.init"))) void main() {
