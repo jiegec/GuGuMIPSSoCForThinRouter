@@ -1,7 +1,7 @@
 #include "router_hal.h"
 #include "io.h"
-#include "structs.h"
 #include "lib.h"
+#include "structs.h"
 #include "xaxidma.h"
 #include "xil_printf.h"
 
@@ -33,6 +33,9 @@ extern volatile uint32_t *DMA_MM2S_TAILDESC;
 extern volatile uint32_t *DMA_MM2S_TAILDESC_HI;
 
 volatile uint32_t *ROUTER_RESET_N = (uint32_t *)0xBFA00000;
+volatile uint32_t *TIMER_CSR = (uint32_t *)0xBF900000;
+volatile uint32_t *TIMER_CR0 = (uint32_t *)0xBF900008;
+volatile uint32_t *TIMER_CR1 = (uint32_t *)0xBF900018;
 
 struct DMADesc {
   uint32_t nextDescLo;
@@ -231,6 +234,9 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
   // start router ip
   *ROUTER_RESET_N = 1;
 
+  // setup timer
+  *TIMER_CSR = (1 << 11) | (1 << 10);
+
   txIndex = 0;
 
   memcpy(interface_addrs, if_addrs, sizeof(interface_addrs));
@@ -241,15 +247,13 @@ int HAL_Init(int debug, in_addr_t if_addrs[N_IFACE_ON_BOARD]) {
 }
 
 uint64_t HAL_GetTicks() {
-  static uint32_t cp0_count_hi = 0;
-  static uint32_t last_cp0_count_hi = 0;
-  uint32_t cp0_count;
-  asm volatile("mfc0 %0, $9, 0;" : "=r"(cp0_count));
-  if (cp0_count & 0x80000000 != last_cp0_count_hi) {
-    last_cp0_count_hi = cp0_count & 0x80000000;
-    cp0_count_hi++;
+  uint32_t hi = *TIMER_CR1;
+  uint32_t lo = *TIMER_CR0;
+  while (*TIMER_CR1 != hi) {
+    hi = *TIMER_CR1;
+    lo = *TIMER_CR0;
   }
-  return cp0_count_hi * 85900 + cp0_count / 50000;
+  return ((((uint64_t)hi) << 32) | lo) / 50000;
 }
 
 int HAL_ArpGetMacAddress(int if_index, in_addr_t ip, macaddr_t o_mac) {
