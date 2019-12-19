@@ -161,7 +161,7 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
     if (ip->payload.udp.srcPort == bswap16(520) &&
         ip->payload.udp.dstPort == bswap16(520)) {
       // RIP
-      xil_printf("Got RIP response from port %d:\n", port);
+      //xil_printf("Got RIP response from port %d:\n", port);
       u16 totalLength = bswap16(ip->totalLength);
       u32 sourceIP;
       memcpy(&sourceIP, ip->sourceIP, sizeof(u32));
@@ -179,13 +179,13 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
         }
         u32 metric = bswap32(ip->payload.udp.payload.rip.routes[routes].metric);
 
-        xil_printf("\t%d: ", routes);
-        printIP(ip_net);
-        xil_printf(" netmask ");
-        printIP(netmask);
-        xil_printf(" nexthop ");
-        printIP(nexthop);
-        xil_printf(" metric %d\n", metric);
+        //xil_printf("\t%d: ", routes);
+        //printIP(ip_net);
+        //xil_printf(" netmask ");
+        //printIP(netmask);
+        //xil_printf(" nexthop ");
+        //printIP(nexthop);
+        //xil_printf(" metric %d\n", metric);
 
         metric += 1;
         if (metric > 16) {
