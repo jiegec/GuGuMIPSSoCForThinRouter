@@ -65,7 +65,7 @@ void fillIcmpChecksum(struct Icmp *icmp, u32 length) {
 void sendRIPReponse() {
   // send RIP response
   for (u8 port = 0; port < 4; port++) {
-    u8 portIP[] = {10, 0, port, 1};
+    u32 portIP = bswap32(if_addrs[port]);
     u8 ripIP[4] = {224, 0, 0, 9};
     struct Ip *ip = (struct Ip *)packet_buffer;
     ip->versionIHL = 0x45;
@@ -108,7 +108,7 @@ void sendRIPReponse() {
     ip->flags = 0;
     ip->ttl = 1;
     ip->protocol = 17; // UDP
-    memcpy(ip->sourceIP, portIP, 4);
+    memcpy(ip->sourceIP, &portIP, 4);
     memcpy(ip->destIP, ripIP, 4);
     ip->payload.udp.srcPort = bswap16(520);
     ip->payload.udp.dstPort = bswap16(520);
@@ -261,8 +261,31 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
   }
 }
 
+int routingTableCmp(const void *a, const void *b) {
+  struct Route *aa = (struct Route *)a;
+  struct Route *bb = (struct Route *)b;
+  // unreachable last
+  if (aa->metric < 16 && bb->metric >= 16) {
+    return -1;
+  } else if (aa->metric >= 16 && bb->metric < 16) {
+    return 1;
+  }
+  // largest netmask first
+  if (aa->netmask > bb->netmask)
+    return -1;
+  else if (aa->netmask < bb->netmask)
+    return 1;
+
+  // smallest ip first
+  if (aa->ip < bb->ip)
+    return -1;
+  else if (aa->ip > bb->ip)
+    return 1;
+  return 0;
+}
+
 void applyCurrentRoutingTable() {
-  //qsort(routingTable, routingTableSize, sizeof(struct Route), routingTableCmp);
+  qsort(routingTable, routingTableSize, sizeof(struct Route), routingTableCmp);
   // add all-zero route as the end
   for (int i = 0; i < 4; i++) {
     *(ROUTING_TABLE + routingTableSize * 4 + i) = 0;
@@ -437,7 +460,7 @@ __attribute((section(".text.init"))) void main() {
       // setup routing table
       routingTableSize = 0;
       for (int i = 0; i < 4; i++) {
-        routingTable[i].ip = if_addrs[i];
+        routingTable[i].ip = if_addrs[i] & 0xffffff00;
         routingTable[i].netmask = 0xffffff00;
         routingTable[i].metric = 1;
         routingTable[i].nexthop = 0; // direct route

@@ -93,7 +93,6 @@ void PutBackBd(XAxiDma_Bd *bd) {
   current->padding[2] = 0;
 
   *DMA_S2MM_TAILDESC = ((uint32_t)&rxBdSpace[rxIndex]) - PHYSICAL_MEMORY_OFFSET;
-  *DMA_S2MM_TAILDESC_HI = 0;
 
   rxIndex++;
   if (rxIndex == BD_COUNT) {

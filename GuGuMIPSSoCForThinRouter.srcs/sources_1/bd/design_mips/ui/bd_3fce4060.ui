@@ -51,9 +51,9 @@ preplace netloc axi_mem_intercon_M06_AXI 1 5 4 1820 1090 NJ 1090 2610 1230 3070
 preplace netloc axi_bram_ctrl_0_BRAM_PORTA 1 9 1 NJ
 preplace netloc axi_mem_intercon_M03_AXI 1 8 1 3170
 preplace netloc clk_wiz_clk_200M 1 2 7 NJ 1360 NJ 1360 NJ 1360 NJ 1360 2270J 1350 2720 1330 3180
-preplace netloc axi_mem_intercon_M09_AXI 1 6 3 2300 1270 NJ 1270 3050
 preplace netloc axi_mem_intercon_M05_AXI 1 8 1 3120
 preplace netloc axi_emc_ext_EMC_INTF 1 9 2 NJ 530 NJ
+preplace netloc axi_mem_intercon_M09_AXI 1 6 3 2300 1270 NJ 1270 3050
 preplace netloc util_vector_logic_0_Res 1 5 1 1780
 preplace netloc rst_clk_50M_interconnect_aresetn 1 4 4 1210J 670 NJ 670 N 670 2610
 preplace netloc axi_bram_ctrl_2_BRAM_PORTA 1 8 1 3090

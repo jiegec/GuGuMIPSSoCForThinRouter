@@ -12,3 +12,6 @@ void memcpy(volatile void *to, volatile void *from, uint32_t count);
 void memmove(volatile void *to, volatile void *from, uint32_t count);
 
 int memcmp(volatile void *to, volatile void *from, uint32_t count);
+
+void qsort(void *array, uint32_t nitems, uint32_t size,
+           int (*cmp)(const void *, const void *));
