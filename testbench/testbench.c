@@ -28,8 +28,8 @@ void printIP(u32 ip) {
   xil_printf("%d.%d.%d.%d", p1, p2, p3, p4);
 }
 
-in_addr_t if_addrs[N_IFACE_ON_BOARD] = {0x0a000001, 0x0a000101, 0x0a000201,
-                                        0x0a000301};
+in_addr_t if_addrs[N_IFACE_ON_BOARD] = {0xc0a80001, 0xc0a80101, 0xc0a80201,
+                                        0xc0a80301};
 
 extern uint32_t _bss_start;
 extern uint32_t _bss_end;
@@ -125,7 +125,7 @@ void sendRIPReponse() {
 
 void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
   struct Ip *ipResp = (struct Ip *)packet_buffer;
-  u32 portIP = 0x0a000001 + (port << 8);
+  u32 portIP = if_addrs[port];
   u32 portIPNet = htonl(portIP);
   u32 destIP;
   memcpy(&destIP, ip->destIP, sizeof(u32));
@@ -437,7 +437,7 @@ __attribute((section(".text.init"))) void main() {
       // setup routing table
       routingTableSize = 0;
       for (int i = 0; i < 4; i++) {
-        routingTable[i].ip = 0x0a000000 + (i << 8);
+        routingTable[i].ip = if_addrs[i];
         routingTable[i].netmask = 0xffffff00;
         routingTable[i].metric = 1;
         routingTable[i].nexthop = 0; // direct route
