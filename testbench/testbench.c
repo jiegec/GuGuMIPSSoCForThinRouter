@@ -298,8 +298,9 @@ int routingTableCmp(const void *a, const void *b) {
 void applyCurrentRoutingTable() {
   qsort(routingTable, routingTableSize, sizeof(struct Route), routingTableCmp);
   uint32_t size = routingTableSize;
-  if (size > HARDWARE_ROUTING_TABLE_SIZE) {
-    size = HARDWARE_ROUTING_TABLE_SIZE;
+  // one trailing zero
+  if (size > HARDWARE_ROUTING_TABLE_SIZE - 1) {
+    size = HARDWARE_ROUTING_TABLE_SIZE - 1;
   }
 
   // add all-zero route as the end
@@ -324,7 +325,7 @@ void applyCurrentRoutingTable() {
 u32 all_routes[SOFTWARE_ROUTING_TABLE_SIZE][4];
 void printCurrentRoutingTable() {
   u32 offset = 0;
-  int j = 0;
+  u32 j = 0;
   for (int flag = 1; flag && j < SOFTWARE_ROUTING_TABLE_SIZE &&
                      j < HARDWARE_ROUTING_TABLE_SIZE;
        j++) {
@@ -340,40 +341,43 @@ void printCurrentRoutingTable() {
     memcpy(all_routes[j], route, sizeof(route));
   }
   j--;
-  xil_printf("Hardware table:\n");
-  for (int i = 0; i < j; i++) {
-    xil_printf("\t%d: ", i);
-    printIP(all_routes[i][2]);
-    xil_printf(" netmask ");
-    printIP(all_routes[i][1]);
-    xil_printf(" via ");
-    printIP(all_routes[i][0]);
-    xil_printf(" dev port%d\n", all_routes[i][3]);
-  }
-  xil_printf("Software table:\n");
-  for (int i = 0; i < routingTableSize; i++) {
-    if (routingTable[i].nexthop != 0) {
-      // indirect
+  xil_printf("Hardware table: %d entries\n", j);
+  if (0) {
+    for (u32 i = 0; i < j; i++) {
       xil_printf("\t%d: ", i);
-      printIP(routingTable[i].ip);
+      printIP(all_routes[i][2]);
       xil_printf(" netmask ");
-      printIP(routingTable[i].netmask);
+      printIP(all_routes[i][1]);
       xil_printf(" via ");
-      printIP(routingTable[i].nexthop);
-      xil_printf(" dev port%d metric %d timer %d learned from ",
-                 routingTable[i].port, routingTable[i].metric,
-                 ((u32)HAL_GetTicks()) / 1000 - routingTable[i].updateTime);
-      printIP(routingTable[i].origin);
-      xil_printf("\n");
-    } else {
-      xil_printf("\t%d: ", i);
-      printIP(routingTable[i].ip);
-      xil_printf(" netmask ");
-      printIP(routingTable[i].netmask);
-      xil_printf(" dev port%d\n", routingTable[i].port);
+      printIP(all_routes[i][0]);
+      xil_printf(" dev port%d\n", all_routes[i][3]);
     }
   }
-  applyCurrentRoutingTable();
+  xil_printf("Software table: %d entries\n", routingTableSize);
+  if (0) {
+    for (int i = 0; i < routingTableSize; i++) {
+      if (routingTable[i].nexthop != 0) {
+        // indirect
+        xil_printf("\t%d: ", i);
+        printIP(routingTable[i].ip);
+        xil_printf(" netmask ");
+        printIP(routingTable[i].netmask);
+        xil_printf(" via ");
+        printIP(routingTable[i].nexthop);
+        xil_printf(" dev port%d metric %d timer %d learned from ",
+                   routingTable[i].port, routingTable[i].metric,
+                   ((u32)HAL_GetTicks()) / 1000 - routingTable[i].updateTime);
+        printIP(routingTable[i].origin);
+        xil_printf("\n");
+      } else {
+        xil_printf("\t%d: ", i);
+        printIP(routingTable[i].ip);
+        xil_printf(" netmask ");
+        printIP(routingTable[i].netmask);
+        xil_printf(" dev port%d\n", routingTable[i].port);
+      }
+    }
+  }
 }
 
 __attribute((section(".text.init"))) void main() {
@@ -495,6 +499,7 @@ __attribute((section(".text.init"))) void main() {
           // 5s timer
           sendRIPResponse();
           printCurrentRoutingTable();
+          applyCurrentRoutingTable();
           time = HAL_GetTicks();
         }
 
