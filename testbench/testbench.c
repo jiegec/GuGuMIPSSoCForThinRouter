@@ -7,7 +7,9 @@
 char buffer[1024];
 uint32_t packet[1024];
 u32 packet_buffer[512];
-struct Route routingTable[1024];
+#define HARDWARE_ROUTING_TABLE_SIZE 32
+#define SOFTWARE_ROUTING_TABLE_SIZE 1024
+struct Route routingTable[SOFTWARE_ROUTING_TABLE_SIZE];
 int routingTableSize = 0;
 u8 ripMAC[6] = {0x01, 0x00, 0x5e, 0x00, 0x00, 0x09};
 u8 portMAC[6] = {2, 2, 3, 3, 0, 0};
@@ -230,14 +232,16 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
 
         if (!flag && metric < 16) {
           // add this entry
-          routingTable[routingTableSize].ip = ip_net;
-          routingTable[routingTableSize].netmask = netmask;
-          routingTable[routingTableSize].nexthop = nexthop;
-          routingTable[routingTableSize].port = port;
-          routingTable[routingTableSize].metric = metric;
-          routingTable[routingTableSize].updateTime = HAL_GetTicks() / 1000;
-          routingTable[routingTableSize].origin = sourceIP;
-          routingTableSize++;
+          if (routingTableSize < SOFTWARE_ROUTING_TABLE_SIZE) {
+            routingTable[routingTableSize].ip = ip_net;
+            routingTable[routingTableSize].netmask = netmask;
+            routingTable[routingTableSize].nexthop = nexthop;
+            routingTable[routingTableSize].port = port;
+            routingTable[routingTableSize].metric = metric;
+            routingTable[routingTableSize].updateTime = HAL_GetTicks() / 1000;
+            routingTable[routingTableSize].origin = sourceIP;
+            routingTableSize++;
+          }
         }
       }
     }
@@ -293,11 +297,16 @@ int routingTableCmp(const void *a, const void *b) {
 
 void applyCurrentRoutingTable() {
   qsort(routingTable, routingTableSize, sizeof(struct Route), routingTableCmp);
+  uint32_t size = routingTableSize;
+  if (size > HARDWARE_ROUTING_TABLE_SIZE) {
+    size = HARDWARE_ROUTING_TABLE_SIZE;
+  }
+
   // add all-zero route as the end
   for (int i = 0; i < 4; i++) {
-    *(ROUTING_TABLE + routingTableSize * 4 + i) = 0;
+    *(ROUTING_TABLE + size * 4 + i) = 0;
   }
-  for (int i = routingTableSize - 1; i >= 0; i--) {
+  for (int i = size - 1; i >= 0; i--) {
     if (routingTable[i].metric >= 16) {
       *(ROUTING_TABLE + i * 4 + 0) = 0;
       *(ROUTING_TABLE + i * 4 + 1) = 0;
@@ -312,11 +321,13 @@ void applyCurrentRoutingTable() {
   }
 }
 
-u32 all_routes[1024][4];
+u32 all_routes[SOFTWARE_ROUTING_TABLE_SIZE][4];
 void printCurrentRoutingTable() {
   u32 offset = 0;
   int j = 0;
-  for (int flag = 1; flag && j < 1024; j++) {
+  for (int flag = 1; flag && j < SOFTWARE_ROUTING_TABLE_SIZE &&
+                     j < HARDWARE_ROUTING_TABLE_SIZE;
+       j++) {
     u32 route[4];
     flag = 0;
     for (u32 i = 0; i < 4; i++) {
