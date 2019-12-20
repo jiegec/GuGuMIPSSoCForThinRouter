@@ -23,7 +23,7 @@ void memmove(void *to, void *from, uint32_t count) {
     char *t = to;
     char *f = from;
     for (int i = count - 1; i >= 0; i--) {
-        t[i] = f[i];
+      t[i] = f[i];
     }
   }
 }
@@ -32,9 +32,9 @@ int memcmp(void *to, void *from, uint32_t count) {
   char *t = to;
   char *f = from;
   for (int i = 0; i < count; i++) {
-      if (t[i] != f[i]) {
-        return t[i] - f[i];
-      }
+    if (t[i] != f[i]) {
+      return t[i] - f[i];
+    }
   }
   return 0;
 }
@@ -66,8 +66,8 @@ void swap(void *x, void *y, uint32_t l) {
   }
 }
 
-void sort(char *array, uint32_t size, int (*cmp)(void *, void *),
-                 int begin, int end) {
+void sort(char *array, uint32_t size, int (*cmp)(void *, void *), int begin,
+          int end) {
   if (end > begin) {
     void *pivot = array + begin;
     int l = begin + size;
@@ -90,7 +90,23 @@ void sort(char *array, uint32_t size, int (*cmp)(void *, void *),
 
 void qsort(void *array, uint32_t nitems, uint32_t size,
            int (*cmp)(void *, void *)) {
-  if (nitems > 0) {
-    sort(array, size, cmp, 0, (nitems - 1) * size);
+  if (0) {
+    if (nitems > 0) {
+      sort(array, size, cmp, 0, (nitems - 1) * size);
+    }
+  }
+
+  for (int i = 1; i < nitems; i++) {
+    int j = i;
+    while (j > 0) {
+      void *current = array + j * size;
+      void *prev = array + (j - 1) * size;
+      if (cmp(prev, current) > 0) {
+        swap(current, prev, size);
+        j--;
+      } else {
+        break;
+      }
+    }
   }
 }

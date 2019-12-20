@@ -354,7 +354,7 @@ void printCurrentRoutingTable() {
     }
   }
   xil_printf("Software table: %d entries\n", routingTableSize);
-  if (0) {
+  if (1) {
     for (int i = 0; i < routingTableSize; i++) {
       if (routingTable[i].nexthop != 0) {
         // indirect
