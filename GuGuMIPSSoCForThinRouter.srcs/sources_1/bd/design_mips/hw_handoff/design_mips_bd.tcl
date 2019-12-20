@@ -278,6 +278,7 @@ proc create_root_design { parentCell } {
   set_property -dict [ list \
    CONFIG.NUM_MI {10} \
    CONFIG.NUM_SI {5} \
+   CONFIG.STRATEGY {1} \
  ] $axi_mem_intercon
 
   # Create instance: axi_timer_0, and set properties
@@ -295,8 +296,8 @@ proc create_root_design { parentCell } {
   # Create instance: clk_wiz, and set properties
   set clk_wiz [ create_bd_cell -type ip -vlnv xilinx.com:ip:clk_wiz:6.0 clk_wiz ]
   set_property -dict [ list \
-   CONFIG.CLKOUT1_JITTER {192.113} \
-   CONFIG.CLKOUT1_REQUESTED_OUT_FREQ {50.000} \
+   CONFIG.CLKOUT1_JITTER {204.383} \
+   CONFIG.CLKOUT1_REQUESTED_OUT_FREQ {40.000} \
    CONFIG.CLKOUT2_JITTER {285.743} \
    CONFIG.CLKOUT2_PHASE_ERROR {164.985} \
    CONFIG.CLKOUT2_REQUESTED_OUT_FREQ {10.000} \
@@ -305,18 +306,18 @@ proc create_root_design { parentCell } {
    CONFIG.CLKOUT3_USED {true} \
    CONFIG.CLKOUT4_REQUESTED_OUT_FREQ {125} \
    CONFIG.CLKOUT4_USED {true} \
-   CONFIG.CLKOUT5_JITTER {192.113} \
+   CONFIG.CLKOUT5_JITTER {172.249} \
    CONFIG.CLKOUT5_PHASE_ERROR {164.985} \
-   CONFIG.CLKOUT5_REQUESTED_OUT_FREQ {50.000} \
+   CONFIG.CLKOUT5_REQUESTED_OUT_FREQ {80.000} \
    CONFIG.CLKOUT5_USED {true} \
    CONFIG.CLK_OUT1_PORT {clk_cpu} \
    CONFIG.CLK_OUT2_PORT {clk_emc} \
    CONFIG.CLK_OUT3_PORT {clk_200M} \
    CONFIG.CLK_OUT4_PORT {clk_125M} \
    CONFIG.CLK_OUT5_PORT {clk_router} \
-   CONFIG.MMCM_CLKOUT0_DIVIDE_F {20.000} \
+   CONFIG.MMCM_CLKOUT0_DIVIDE_F {25.000} \
    CONFIG.MMCM_CLKOUT1_DIVIDE {100} \
-   CONFIG.MMCM_CLKOUT4_DIVIDE {20} \
+   CONFIG.MMCM_CLKOUT4_DIVIDE {13} \
    CONFIG.MMCM_DIVCLK_DIVIDE {1} \
    CONFIG.NUM_OUT_CLKS {5} \
  ] $clk_wiz
@@ -359,7 +360,7 @@ proc create_root_design { parentCell } {
   set system_ila_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 system_ila_0 ]
   set_property -dict [ list \
    CONFIG.C_MON_TYPE {MIX} \
-   CONFIG.C_NUM_MONITOR_SLOTS {3} \
+   CONFIG.C_NUM_MONITOR_SLOTS {1} \
    CONFIG.C_NUM_OF_PROBES {7} \
    CONFIG.C_PROBE0_TYPE {0} \
    CONFIG.C_PROBE1_TYPE {0} \
@@ -391,17 +392,6 @@ proc create_root_design { parentCell } {
    CONFIG.C_SLOT_2_INTF_TYPE {xilinx.com:interface:axis_rtl:1.0} \
  ] $system_ila_0
 
-  # Create instance: system_ila_1, and set properties
-  set system_ila_1 [ create_bd_cell -type ip -vlnv xilinx.com:ip:system_ila:1.1 system_ila_1 ]
-  set_property -dict [ list \
-   CONFIG.C_MON_TYPE {NATIVE} \
-   CONFIG.C_NUM_OF_PROBES {4} \
-   CONFIG.C_PROBE0_TYPE {0} \
-   CONFIG.C_PROBE1_TYPE {0} \
-   CONFIG.C_PROBE2_TYPE {0} \
-   CONFIG.C_PROBE3_TYPE {0} \
- ] $system_ila_1
-
   # Create instance: util_vector_logic_0, and set properties
   set util_vector_logic_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:util_vector_logic:2.0 util_vector_logic_0 ]
   set_property -dict [ list \
@@ -428,8 +418,6 @@ proc create_root_design { parentCell } {
   connect_bd_intf_net -intf_net axi_bram_ctrl_1_BRAM_PORTA [get_bd_intf_pins axi_bram_ctrl_1/BRAM_PORTA] [get_bd_intf_pins axi_bram_ctrl_1_bram/BRAM_PORTA]
   connect_bd_intf_net -intf_net axi_bram_ctrl_2_BRAM_PORTA [get_bd_intf_pins axi_bram_ctrl_2/BRAM_PORTA] [get_bd_intf_pins router_0/routing_table]
   connect_bd_intf_net -intf_net axi_dma_0_M_AXIS_MM2S [get_bd_intf_pins axi_dma_0/M_AXIS_MM2S] [get_bd_intf_pins router_0/axis_rxd]
-connect_bd_intf_net -intf_net [get_bd_intf_nets axi_dma_0_M_AXIS_MM2S] [get_bd_intf_pins axi_dma_0/M_AXIS_MM2S] [get_bd_intf_pins system_ila_0/SLOT_1_AXIS]
-set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_intf_nets axi_dma_0_M_AXIS_MM2S]
   connect_bd_intf_net -intf_net axi_dma_0_M_AXI_MM2S [get_bd_intf_pins axi_dma_0/M_AXI_MM2S] [get_bd_intf_pins axi_mem_intercon/S02_AXI]
   connect_bd_intf_net -intf_net axi_dma_0_M_AXI_S2MM [get_bd_intf_pins axi_dma_0/M_AXI_S2MM] [get_bd_intf_pins axi_mem_intercon/S03_AXI]
   connect_bd_intf_net -intf_net axi_dma_0_M_AXI_SG [get_bd_intf_pins axi_dma_0/M_AXI_SG] [get_bd_intf_pins axi_mem_intercon/S04_AXI]
@@ -452,8 +440,6 @@ set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_intf_nets axi_dma_0_M_AXIS_MM2S]
 connect_bd_intf_net -intf_net [get_bd_intf_nets mycpu_top_0_interface_aximm] [get_bd_intf_pins axi_mem_intercon/S00_AXI] [get_bd_intf_pins system_ila_0/SLOT_0_AXI]
 set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_intf_nets mycpu_top_0_interface_aximm]
   connect_bd_intf_net -intf_net router_0_axis_txd [get_bd_intf_pins axi_dma_0/S_AXIS_S2MM] [get_bd_intf_pins router_0/axis_txd]
-connect_bd_intf_net -intf_net [get_bd_intf_nets router_0_axis_txd] [get_bd_intf_pins axi_dma_0/S_AXIS_S2MM] [get_bd_intf_pins system_ila_0/SLOT_2_AXIS]
-set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_intf_nets router_0_axis_txd]
   connect_bd_intf_net -intf_net router_0_rgmii [get_bd_intf_ports eth_rgmii] [get_bd_intf_pins router_0/rgmii]
 
   # Create port connections
@@ -462,7 +448,7 @@ set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_intf_nets router_0_axis_txd]
   connect_bd_net -net clk_wiz_clk_125M [get_bd_pins clk_wiz/clk_125M] [get_bd_pins router_0/clk_125M]
   connect_bd_net -net clk_wiz_clk_200M [get_bd_pins clk_wiz/clk_200M] [get_bd_pins router_0/clk_200M]
   connect_bd_net -net clk_wiz_clk_cpu [get_bd_pins axi_bram_ctrl_0/s_axi_aclk] [get_bd_pins axi_bram_ctrl_1/s_axi_aclk] [get_bd_pins axi_bram_ctrl_2/s_axi_aclk] [get_bd_pins axi_dma_0/m_axi_mm2s_aclk] [get_bd_pins axi_dma_0/m_axi_s2mm_aclk] [get_bd_pins axi_dma_0/m_axi_sg_aclk] [get_bd_pins axi_dma_0/s_axi_lite_aclk] [get_bd_pins axi_gpio_0/s_axi_aclk] [get_bd_pins axi_mem_intercon/ACLK] [get_bd_pins axi_mem_intercon/M00_ACLK] [get_bd_pins axi_mem_intercon/M01_ACLK] [get_bd_pins axi_mem_intercon/M02_ACLK] [get_bd_pins axi_mem_intercon/M06_ACLK] [get_bd_pins axi_mem_intercon/M07_ACLK] [get_bd_pins axi_mem_intercon/M08_ACLK] [get_bd_pins axi_mem_intercon/M09_ACLK] [get_bd_pins axi_mem_intercon/S00_ACLK] [get_bd_pins axi_mem_intercon/S01_ACLK] [get_bd_pins axi_mem_intercon/S02_ACLK] [get_bd_pins axi_mem_intercon/S03_ACLK] [get_bd_pins axi_mem_intercon/S04_ACLK] [get_bd_pins axi_timer_0/s_axi_aclk] [get_bd_pins axi_uartlite_0/s_axi_aclk] [get_bd_pins clk_wiz/clk_cpu] [get_bd_pins jtag_axi_0/aclk] [get_bd_pins mycpu_top_0/aclk] [get_bd_pins router_0/axis_clk] [get_bd_pins rst_clk_wiz_50M/slowest_sync_clk] [get_bd_pins system_ila_0/clk]
-  connect_bd_net -net clk_wiz_clk_out2 [get_bd_pins axi_emc_base/rdclk] [get_bd_pins axi_emc_base/s_axi_aclk] [get_bd_pins axi_emc_ext/rdclk] [get_bd_pins axi_emc_ext/s_axi_aclk] [get_bd_pins axi_emc_flash/rdclk] [get_bd_pins axi_emc_flash/s_axi_aclk] [get_bd_pins axi_mem_intercon/M03_ACLK] [get_bd_pins axi_mem_intercon/M04_ACLK] [get_bd_pins axi_mem_intercon/M05_ACLK] [get_bd_pins clk_wiz/clk_emc] [get_bd_pins eth_conf_0/clk] [get_bd_pins rst_clk_50M/slowest_sync_clk] [get_bd_pins system_ila_1/clk] [get_bd_pins vio_0/clk]
+  connect_bd_net -net clk_wiz_clk_out2 [get_bd_pins axi_emc_base/rdclk] [get_bd_pins axi_emc_base/s_axi_aclk] [get_bd_pins axi_emc_ext/rdclk] [get_bd_pins axi_emc_ext/s_axi_aclk] [get_bd_pins axi_emc_flash/rdclk] [get_bd_pins axi_emc_flash/s_axi_aclk] [get_bd_pins axi_mem_intercon/M03_ACLK] [get_bd_pins axi_mem_intercon/M04_ACLK] [get_bd_pins axi_mem_intercon/M05_ACLK] [get_bd_pins clk_wiz/clk_emc] [get_bd_pins eth_conf_0/clk] [get_bd_pins rst_clk_50M/slowest_sync_clk] [get_bd_pins vio_0/clk]
   connect_bd_net -net clk_wiz_clk_router [get_bd_pins clk_wiz/clk_router] [get_bd_pins router_0/clk]
   connect_bd_net -net clk_wiz_locked [get_bd_pins clk_wiz/locked] [get_bd_pins rst_clk_50M/dcm_locked] [get_bd_pins rst_clk_wiz_50M/dcm_locked]
   connect_bd_net -net cp0_cause_o [get_bd_pins mycpu_top_0/cp0_cause_o] [get_bd_pins system_ila_0/probe4]
@@ -479,14 +465,10 @@ set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_nets debug_wb_rf_data]
 set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_nets debug_wb_rf_wen]
   connect_bd_net -net debug_wb_rf_wnum [get_bd_pins mycpu_top_0/debug_wb_rf_wnum] [get_bd_pins system_ila_0/probe1]
 set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_nets debug_wb_rf_wnum]
-  connect_bd_net -net eth_conf_0_eth_spi_mosi [get_bd_ports eth_spi_mosi] [get_bd_pins eth_conf_0/eth_spi_mosi] [get_bd_pins system_ila_1/probe3]
-set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_nets eth_conf_0_eth_spi_mosi]
-  connect_bd_net -net eth_conf_0_eth_spi_sck [get_bd_ports eth_spi_sck] [get_bd_pins eth_conf_0/eth_spi_sck] [get_bd_pins system_ila_1/probe1]
-set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_nets eth_conf_0_eth_spi_sck]
-  connect_bd_net -net eth_conf_0_eth_spi_ss_n [get_bd_ports eth_spi_ss_n] [get_bd_pins eth_conf_0/eth_spi_ss_n] [get_bd_pins system_ila_1/probe0]
-set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_nets eth_conf_0_eth_spi_ss_n]
-  connect_bd_net -net eth_spi_miso_0_1 [get_bd_ports eth_spi_miso] [get_bd_pins eth_conf_0/eth_spi_miso] [get_bd_pins system_ila_1/probe2]
-set_property HDL_ATTRIBUTE.DEBUG {true} [get_bd_nets eth_spi_miso_0_1]
+  connect_bd_net -net eth_conf_0_eth_spi_mosi [get_bd_ports eth_spi_mosi] [get_bd_pins eth_conf_0/eth_spi_mosi]
+  connect_bd_net -net eth_conf_0_eth_spi_sck [get_bd_ports eth_spi_sck] [get_bd_pins eth_conf_0/eth_spi_sck]
+  connect_bd_net -net eth_conf_0_eth_spi_ss_n [get_bd_ports eth_spi_ss_n] [get_bd_pins eth_conf_0/eth_spi_ss_n]
+  connect_bd_net -net eth_spi_miso_0_1 [get_bd_ports eth_spi_miso] [get_bd_pins eth_conf_0/eth_spi_miso]
   connect_bd_net -net reset_1 [get_bd_ports reset] [get_bd_pins rst_clk_50M/ext_reset_in]
   connect_bd_net -net rst_clk_50M_interconnect_aresetn [get_bd_pins axi_mem_intercon/ARESETN] [get_bd_pins rst_clk_50M/interconnect_aresetn]
   connect_bd_net -net rst_clk_50M_mb_reset [get_bd_pins rst_clk_50M/mb_reset] [get_bd_pins util_vector_logic_0/Op1]

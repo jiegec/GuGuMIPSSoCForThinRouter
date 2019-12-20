@@ -62,64 +62,72 @@ void fillIcmpChecksum(struct Icmp *icmp, u32 length) {
   icmp->checksum = ~checksum;
 }
 
-void sendRIPReponse() {
+void sendRIPResponse() {
   // send RIP response
   for (u8 port = 0; port < 4; port++) {
     u32 portIP = bswap32(if_addrs[port]);
     u8 ripIP[4] = {224, 0, 0, 9};
-    struct Ip *ip = (struct Ip *)packet_buffer;
-    ip->versionIHL = 0x45;
-    ip->dsf = 0;
-
-    int routes = 0;
-    for (int r = 0; r < routingTableSize; r++) {
-      ip->payload.udp.payload.rip.routes[routes].family = bswap16(2);
-      ip->payload.udp.payload.rip.routes[routes].routeTag = 0;
-      ip->payload.udp.payload.rip.routes[routes].ip =
-          bswap32(routingTable[r].ip);
-      ip->payload.udp.payload.rip.routes[routes].netmask =
-          bswap32(routingTable[r].netmask);
-      ip->payload.udp.payload.rip.routes[routes].nexthop = bswap32(0);
-      if (routingTable[r].port != port) {
-        // not this port, split horizon
-        ip->payload.udp.payload.rip.routes[routes].metric =
-            bswap32(routingTable[r].metric);
-      } else {
-        // from this port, reverse poisoning
-        ip->payload.udp.payload.rip.routes[routes].metric = bswap32(16);
+    for (int part = 0; part < (routingTableSize + 24) / 25; part++) {
+      int from = part * 25;
+      int to = (part + 1) * 25;
+      if (to > routingTableSize) {
+        to = routingTableSize;
       }
-      routes++;
+
+      struct Ip *ip = (struct Ip *)packet_buffer;
+      ip->versionIHL = 0x45;
+      ip->dsf = 0;
+
+      int routes = 0;
+      for (int r = from; r < to; r++) {
+        ip->payload.udp.payload.rip.routes[routes].family = bswap16(2);
+        ip->payload.udp.payload.rip.routes[routes].routeTag = 0;
+        ip->payload.udp.payload.rip.routes[routes].ip =
+            bswap32(routingTable[r].ip);
+        ip->payload.udp.payload.rip.routes[routes].netmask =
+            bswap32(routingTable[r].netmask);
+        ip->payload.udp.payload.rip.routes[routes].nexthop = bswap32(0);
+        if (routingTable[r].port != port) {
+          // not this port, split horizon
+          ip->payload.udp.payload.rip.routes[routes].metric =
+              bswap32(routingTable[r].metric);
+        } else {
+          // from this port, reverse poisoning
+          ip->payload.udp.payload.rip.routes[routes].metric = bswap32(16);
+        }
+        routes++;
+      }
+
+      if (routes == 0) {
+        routes = 1;
+        ip->payload.udp.payload.rip.routes[0].family = 0;
+        ip->payload.udp.payload.rip.routes[0].routeTag = 0;
+        ip->payload.udp.payload.rip.routes[0].ip = 0;
+        ip->payload.udp.payload.rip.routes[0].netmask = 0;
+        ip->payload.udp.payload.rip.routes[0].nexthop = 0;
+        ip->payload.udp.payload.rip.routes[0].metric = 0;
+      }
+
+      u16 totalLength = 20 + 8 + 4 + 20 * routes;
+
+      ip->totalLength = bswap16(totalLength);
+      ip->identification = 0;
+      ip->flags = 0;
+      ip->ttl = 1;
+      ip->protocol = 17; // UDP
+      memcpy(ip->sourceIP, &portIP, 4);
+      memcpy(ip->destIP, ripIP, 4);
+      ip->payload.udp.srcPort = bswap16(520);
+      ip->payload.udp.dstPort = bswap16(520);
+      ip->payload.udp.length = bswap16(totalLength - 20);
+      ip->payload.udp.checksum = 0;
+      ip->payload.udp.payload.rip.command = 2;
+      ip->payload.udp.payload.rip.version = 2;
+      ip->payload.udp.payload.rip.zero = 0;
+
+      fillIpChecksum(ip);
+      HAL_SendIPPacket(port, (u8 *)packet_buffer, totalLength, ripMAC);
     }
-
-    if (routes == 0) {
-      routes = 1;
-      ip->payload.udp.payload.rip.routes[0].family = 0;
-      ip->payload.udp.payload.rip.routes[0].routeTag = 0;
-      ip->payload.udp.payload.rip.routes[0].ip = 0;
-      ip->payload.udp.payload.rip.routes[0].netmask = 0;
-      ip->payload.udp.payload.rip.routes[0].nexthop = 0;
-      ip->payload.udp.payload.rip.routes[0].metric = 0;
-    }
-
-    u16 totalLength = 20 + 8 + 4 + 20 * routes;
-
-    ip->totalLength = bswap16(totalLength);
-    ip->identification = 0;
-    ip->flags = 0;
-    ip->ttl = 1;
-    ip->protocol = 17; // UDP
-    memcpy(ip->sourceIP, &portIP, 4);
-    memcpy(ip->destIP, ripIP, 4);
-    ip->payload.udp.srcPort = bswap16(520);
-    ip->payload.udp.dstPort = bswap16(520);
-    ip->payload.udp.length = bswap16(totalLength - 20);
-    ip->payload.udp.checksum = 0;
-    ip->payload.udp.payload.rip.command = 2;
-    ip->payload.udp.payload.rip.version = 2;
-    ip->payload.udp.payload.rip.zero = 0;
-
-    fillIpChecksum(ip);
-    HAL_SendIPPacket(port, (u8 *)packet_buffer, totalLength, ripMAC);
   }
 }
 
@@ -161,7 +169,7 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
     if (ip->payload.udp.srcPort == bswap16(520) &&
         ip->payload.udp.dstPort == bswap16(520)) {
       // RIP
-      //xil_printf("Got RIP response from port %d:\n", port);
+      // xil_printf("Got RIP response from port %d:\n", port);
       u16 totalLength = bswap16(ip->totalLength);
       u32 sourceIP;
       memcpy(&sourceIP, ip->sourceIP, sizeof(u32));
@@ -179,13 +187,13 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
         }
         u32 metric = bswap32(ip->payload.udp.payload.rip.routes[routes].metric);
 
-        //xil_printf("\t%d: ", routes);
-        //printIP(ip_net);
-        //xil_printf(" netmask ");
-        //printIP(netmask);
-        //xil_printf(" nexthop ");
-        //printIP(nexthop);
-        //xil_printf(" metric %d\n", metric);
+        // xil_printf("\t%d: ", routes);
+        // printIP(ip_net);
+        // xil_printf(" netmask ");
+        // printIP(netmask);
+        // xil_printf(" nexthop ");
+        // printIP(nexthop);
+        // xil_printf(" metric %d\n", metric);
 
         metric += 1;
         if (metric > 16) {
@@ -227,8 +235,7 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
           routingTable[routingTableSize].nexthop = nexthop;
           routingTable[routingTableSize].port = port;
           routingTable[routingTableSize].metric = metric;
-          routingTable[routingTableSize].updateTime =
-              HAL_GetTicks() / 1000;
+          routingTable[routingTableSize].updateTime = HAL_GetTicks() / 1000;
           routingTable[routingTableSize].origin = sourceIP;
           routingTableSize++;
         }
@@ -343,8 +350,8 @@ void printCurrentRoutingTable() {
       xil_printf(" via ");
       printIP(routingTable[i].nexthop);
       xil_printf(" dev port%d metric %d timer %d learned from ",
-             routingTable[i].port, routingTable[i].metric,
-             ((u32)HAL_GetTicks()) / 1000 - routingTable[i].updateTime);
+                 routingTable[i].port, routingTable[i].metric,
+                 ((u32)HAL_GetTicks()) / 1000 - routingTable[i].updateTime);
       printIP(routingTable[i].origin);
       xil_printf("\n");
     } else {
@@ -475,7 +482,7 @@ __attribute((section(".text.init"))) void main() {
       while (1) {
         if (HAL_GetTicks() > time + 1000 * 5) {
           // 5s timer
-          sendRIPReponse();
+          sendRIPResponse();
           printCurrentRoutingTable();
           time = HAL_GetTicks();
         }
