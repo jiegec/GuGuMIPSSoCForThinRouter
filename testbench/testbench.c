@@ -8,7 +8,7 @@ char buffer[1024];
 uint32_t packet[1024];
 u32 packet_buffer[512];
 #define HARDWARE_ROUTING_TABLE_SIZE 32
-#define SOFTWARE_ROUTING_TABLE_SIZE 1024
+#define SOFTWARE_ROUTING_TABLE_SIZE 4096
 struct Route routingTable[SOFTWARE_ROUTING_TABLE_SIZE];
 int routingTableSize = 0;
 u8 ripMAC[6] = {0x01, 0x00, 0x5e, 0x00, 0x00, 0x09};
@@ -354,7 +354,7 @@ void printCurrentRoutingTable() {
     }
   }
   xil_printf("Software table: %d entries\n", routingTableSize);
-  if (1) {
+  if (0) {
     for (int i = 0; i < routingTableSize; i++) {
       if (routingTable[i].nexthop != 0) {
         // indirect
