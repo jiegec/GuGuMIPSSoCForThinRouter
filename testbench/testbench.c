@@ -7,7 +7,7 @@
 char buffer[1024];
 uint32_t packet[1024];
 u32 packet_buffer[512];
-#define HARDWARE_ROUTING_TABLE_SIZE 32
+#define HARDWARE_ROUTING_TABLE_SIZE 4096
 #define SOFTWARE_ROUTING_TABLE_SIZE 4096
 struct Route routingTable[SOFTWARE_ROUTING_TABLE_SIZE];
 int routingTableSize = 0;
@@ -309,6 +309,7 @@ void applyCurrentRoutingTable() {
   }
   for (int i = size - 1; i >= 0; i--) {
     if (routingTable[i].metric >= 16) {
+      // FIXME
       *(ROUTING_TABLE + i * 4 + 0) = 0;
       *(ROUTING_TABLE + i * 4 + 1) = 0;
       *(ROUTING_TABLE + i * 4 + 2) = 0;
@@ -495,6 +496,12 @@ __attribute((section(".text.init"))) void main() {
       HAL_Init(1, if_addrs);
       uint64_t time = HAL_GetTicks();
       while (1) {
+        macaddr_t src_mac;
+        macaddr_t dst_mac;
+        int if_index;
+        int res = HAL_ReceiveIPPacket((1 << N_IFACE_ON_BOARD) - 1,
+                                      (uint8_t *)packet, sizeof(packet),
+                                      src_mac, dst_mac, 1000, &if_index);
         if (HAL_GetTicks() > time + 1000 * 5) {
           // 5s timer
           sendRIPResponse();
@@ -503,12 +510,9 @@ __attribute((section(".text.init"))) void main() {
           time = HAL_GetTicks();
         }
 
-        macaddr_t src_mac;
-        macaddr_t dst_mac;
-        int if_index;
-        int res = HAL_ReceiveIPPacket((1 << N_IFACE_ON_BOARD) - 1,
-                                      (uint8_t *)packet, sizeof(packet),
-                                      src_mac, dst_mac, 1000, &if_index);
+        if (res == 0) {
+          continue;
+        }
         if (0) {
           xil_printf("res %d if_index %d\n", res, if_index);
           xil_printf("from ");
