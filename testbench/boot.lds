@@ -6,6 +6,7 @@ SECTIONS {
     }
     .rodata : {
         *(.rodata)
+        *(.rodata.*)
     }
     .got : {
         *(.got)
