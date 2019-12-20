@@ -189,13 +189,23 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
         }
         u32 metric = bswap32(ip->payload.udp.payload.rip.routes[routes].metric);
 
-        // xil_printf("\t%d: ", routes);
-        // printIP(ip_net);
-        // xil_printf(" netmask ");
-        // printIP(netmask);
-        // xil_printf(" nexthop ");
-        // printIP(nexthop);
-        // xil_printf(" metric %d\n", metric);
+        // sanity check
+        if (metric < 1 || metric > 16) {
+          continue;
+        }
+        if (ip_net & ~netmask) {
+          continue;
+        }
+
+        if (0) {
+          xil_printf("\t%d: ", routes);
+          printIP(ip_net);
+          xil_printf(" netmask ");
+          printIP(netmask);
+          xil_printf(" nexthop ");
+          printIP(nexthop);
+          xil_printf(" metric %d\n", metric);
+        }
 
         metric += 1;
         if (metric > 16) {
@@ -296,7 +306,6 @@ int routingTableCmp(const void *a, const void *b) {
 }
 
 void applyCurrentRoutingTable() {
-  qsort(routingTable, routingTableSize, sizeof(struct Route), routingTableCmp);
   uint32_t size = routingTableSize;
   // one trailing zero
   if (size > HARDWARE_ROUTING_TABLE_SIZE - 1) {
@@ -325,25 +334,25 @@ void applyCurrentRoutingTable() {
 
 u32 all_routes[SOFTWARE_ROUTING_TABLE_SIZE][4];
 void printCurrentRoutingTable() {
-  u32 offset = 0;
-  u32 j = 0;
-  for (int flag = 1; flag && j < SOFTWARE_ROUTING_TABLE_SIZE &&
-                     j < HARDWARE_ROUTING_TABLE_SIZE;
-       j++) {
-    u32 route[4];
-    flag = 0;
-    for (u32 i = 0; i < 4; i++) {
-      route[i] = *(ROUTING_TABLE + offset + i);
-      if (route[i]) {
-        flag = 1;
-      }
-    }
-    offset += 4;
-    memcpy(all_routes[j], route, sizeof(route));
-  }
-  j--;
-  xil_printf("Hardware table: %d entries\n", j);
   if (0) {
+    u32 offset = 0;
+    u32 j = 0;
+    for (int flag = 1; flag && j < SOFTWARE_ROUTING_TABLE_SIZE &&
+                       j < HARDWARE_ROUTING_TABLE_SIZE;
+         j++) {
+      u32 route[4];
+      flag = 0;
+      for (u32 i = 0; i < 4; i++) {
+        route[i] = *(ROUTING_TABLE + offset + i);
+        if (route[i]) {
+          flag = 1;
+        }
+      }
+      offset += 4;
+      memcpy(all_routes[j], route, sizeof(route));
+    }
+    j--;
+    xil_printf("Hardware table: %d entries\n", j);
     for (u32 i = 0; i < j; i++) {
       xil_printf("\t%d: ", i);
       printIP(all_routes[i][2]);
@@ -355,6 +364,7 @@ void printCurrentRoutingTable() {
     }
   }
   xil_printf("Software table: %d entries\n", routingTableSize);
+  qsort(routingTable, routingTableSize, sizeof(struct Route), routingTableCmp);
   if (0) {
     for (int i = 0; i < routingTableSize; i++) {
       if (routingTable[i].nexthop != 0) {
@@ -502,7 +512,7 @@ __attribute((section(".text.init"))) void main() {
         int res = HAL_ReceiveIPPacket((1 << N_IFACE_ON_BOARD) - 1,
                                       (uint8_t *)packet, sizeof(packet),
                                       src_mac, dst_mac, 1000, &if_index);
-        if (HAL_GetTicks() > time + 1000 * 5) {
+        if (HAL_GetTicks() > time + 1000 * 15) {
           // 5s timer
           sendRIPResponse();
           printCurrentRoutingTable();

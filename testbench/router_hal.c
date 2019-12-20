@@ -493,6 +493,12 @@ int HAL_ReceiveIPPacket(int if_index_mask, uint8_t *buffer, size_t length,
           xil_printf(
               "HAL_ReceiveIPPacket: ignore unrecognized packet at time %d\r\n",
               (uint32_t)HAL_GetTicks());
+          if (0) {
+            for (int i = 0; i < length; i++) {
+              puthex_u8(data[i]);
+            }
+            xil_printf("\n");
+          }
         }
       }
       PutBackBd(bd);
