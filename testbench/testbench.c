@@ -24,6 +24,30 @@ int strequ(char *a, char *b) {
   return *a == *b;
 }
 
+int routingTableCmp(const void *a, const void *b) {
+  struct Route *aa = (struct Route *)a;
+  struct Route *bb = (struct Route *)b;
+  // unreachable last
+  if (aa->metric < 16 && bb->metric >= 16) {
+    return -1;
+  } else if (aa->metric >= 16 && bb->metric < 16) {
+    return 1;
+  }
+  // largest netmask first
+  if (aa->netmask > bb->netmask)
+    return -1;
+  else if (aa->netmask < bb->netmask)
+    return 1;
+
+  // smallest ip first
+  if (aa->ip < bb->ip)
+    return -1;
+  else if (aa->ip > bb->ip)
+    return 1;
+  return 0;
+}
+
+
 void printIP(u32 ip) {
   int p1 = ip >> 24, p2 = (ip >> 16) & 0xFF, p3 = (ip >> 8) & 0xFF,
       p4 = ip & 0xFF;
@@ -237,6 +261,8 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
             }
             flag = 1;
             break;
+          } else if (routingTable[i].netmask < netmask) {
+            break;
           }
         }
 
@@ -251,6 +277,7 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
             routingTable[routingTableSize].updateTime = HAL_GetTicks() / 1000;
             routingTable[routingTableSize].origin = sourceIP;
             routingTableSize++;
+            qsort(routingTable, routingTableSize, sizeof(struct Route), routingTableCmp);
           }
         }
       }
@@ -280,29 +307,6 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
     fillIpChecksum(ipResp);
     HAL_SendIPPacket(port, buffer, totalLength, srcMAC);
   }
-}
-
-int routingTableCmp(const void *a, const void *b) {
-  struct Route *aa = (struct Route *)a;
-  struct Route *bb = (struct Route *)b;
-  // unreachable last
-  if (aa->metric < 16 && bb->metric >= 16) {
-    return -1;
-  } else if (aa->metric >= 16 && bb->metric < 16) {
-    return 1;
-  }
-  // largest netmask first
-  if (aa->netmask > bb->netmask)
-    return -1;
-  else if (aa->netmask < bb->netmask)
-    return 1;
-
-  // smallest ip first
-  if (aa->ip < bb->ip)
-    return -1;
-  else if (aa->ip > bb->ip)
-    return 1;
-  return 0;
 }
 
 void applyCurrentRoutingTable() {
@@ -364,7 +368,6 @@ void printCurrentRoutingTable() {
     }
   }
   xil_printf("Software table: %d entries\n", routingTableSize);
-  qsort(routingTable, routingTableSize, sizeof(struct Route), routingTableCmp);
   if (0) {
     for (int i = 0; i < routingTableSize; i++) {
       if (routingTable[i].nexthop != 0) {
@@ -502,6 +505,7 @@ __attribute((section(".text.init"))) void main() {
         routingTable[i].origin = 0; // myself
         routingTableSize++;
       }
+      qsort(routingTable, routingTableSize, sizeof(struct Route), routingTableCmp);
 
       HAL_Init(1, if_addrs);
       uint64_t time = HAL_GetTicks();

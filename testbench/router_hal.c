@@ -13,7 +13,7 @@ int debugEnabled = 0;
 in_addr_t interface_addrs[N_IFACE_ON_BOARD] = {0};
 macaddr_t interface_mac = {2, 2, 3, 3, 0, 0};
 
-#define BD_COUNT 128
+#define BD_COUNT 256
 #define BUFFER_SIZE 2048
 #define PHYSICAL_MEMORY_OFFSET 0x80000000
 #define UNCACHED_MEMORY_OFFSET 0x20000000
