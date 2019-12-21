@@ -285,6 +285,7 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
             routingTable[routingTableSize].updateTime = HAL_GetTicks() / 1000;
             routingTable[routingTableSize].origin = sourceIP;
             routingTableSize++;
+            // insertion sort
             int j = routingTableSize - 1;
             while (j > 0) {
               if (routingTableCmp(&routingTable[j - 1], &routingTable[j]) > 0) {
