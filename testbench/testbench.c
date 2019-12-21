@@ -47,7 +47,6 @@ int routingTableCmp(const void *a, const void *b) {
   return 0;
 }
 
-
 void printIP(u32 ip) {
   int p1 = ip >> 24, p2 = (ip >> 16) & 0xFF, p3 = (ip >> 8) & 0xFF,
       p4 = ip & 0xFF;
@@ -194,6 +193,7 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
     // UDP
     if (ip->payload.udp.srcPort == bswap16(520) &&
         ip->payload.udp.dstPort == bswap16(520)) {
+      uint64_t time = HAL_GetTicks();
       // RIP
       // xil_printf("Got RIP response from port %d:\n", port);
       u16 totalLength = bswap16(ip->totalLength);
@@ -237,9 +237,19 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
         }
 
         int flag = 0;
-        for (int i = 0; i < routingTableSize; i++) {
-          if (routingTable[i].ip == ip_net &&
-              routingTable[i].netmask == netmask) {
+        int l = 0, r = routingTableSize - 1;
+        while (l <= r) {
+          int m = (l + r) >> 1;
+          if (routingTable[m].netmask > netmask ||
+              (routingTable[m].netmask == netmask &&
+               routingTable[m].ip < ip_net)) {
+            l = m + 1;
+          } else if (routingTable[m].netmask < netmask ||
+                     (routingTable[m].netmask == netmask &&
+                      routingTable[m].ip > ip_net)) {
+            r = m - 1;
+          } else {
+            int i = m;
             if (routingTable[i].origin == sourceIP) {
               routingTable[i].updateTime = HAL_GetTicks() / 1000;
             }
@@ -261,8 +271,6 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
             }
             flag = 1;
             break;
-          } else if (routingTable[i].netmask < netmask) {
-            break;
           }
         }
 
@@ -277,10 +285,31 @@ void handleIP(u8 port, struct Ip *ip, macaddr_t srcMAC) {
             routingTable[routingTableSize].updateTime = HAL_GetTicks() / 1000;
             routingTable[routingTableSize].origin = sourceIP;
             routingTableSize++;
-            qsort(routingTable, routingTableSize, sizeof(struct Route), routingTableCmp);
+            int j = routingTableSize - 1;
+            while (j > 0) {
+              if (routingTableCmp(&routingTable[j - 1], &routingTable[j]) > 0) {
+                uint32_t *a = (uint32_t *)&routingTable[j - 1],
+                         *b = (uint32_t *)&routingTable[j], c;
+                uint32_t l = sizeof(struct Route);
+                while (l) {
+                  c = *a;
+                  *a++ = *b;
+                  *b++ = c;
+                  l -= 4;
+                }
+                j--;
+              } else {
+                break;
+              }
+            }
+            if (0) {
+              qsort(routingTable, routingTableSize, sizeof(struct Route),
+                    routingTableCmp);
+            }
           }
         }
       }
+      xil_printf("handle %d\n", (uint32_t)(HAL_GetTicks() - time));
     }
   } else if (ip->ttl == 1) {
     // send ICMP Time Exceeded
@@ -505,7 +534,8 @@ __attribute((section(".text.init"))) void main() {
         routingTable[i].origin = 0; // myself
         routingTableSize++;
       }
-      qsort(routingTable, routingTableSize, sizeof(struct Route), routingTableCmp);
+      qsort(routingTable, routingTableSize, sizeof(struct Route),
+            routingTableCmp);
 
       HAL_Init(1, if_addrs);
       uint64_t time = HAL_GetTicks();
